@@ -1,0 +1,93 @@
+/* Matinee — Midnight Marquee. Tailwind v4 theme tokens.
+   Dark is the default. Light applies with <html data-theme="light">. */
+@import "tailwindcss";
+
+@custom-variant light (&:where([data-theme=light], [data-theme=light] *));
+
+@theme {
+  /* Surfaces + text: resolved from the per-mode vars below */
+  --color-ink-900: var(--mt-bg);
+  --color-ink-850: var(--mt-canvas);
+  --color-ink-800: var(--mt-surface);
+  --color-ink-750: var(--mt-cardback);
+  --color-ink-700: var(--mt-raised);
+  --color-ink-hair: var(--mt-hair);
+  --color-ink-600: var(--mt-line);
+  --color-ink-500: var(--mt-line2);
+  --color-ink-450: var(--mt-line3);
+  --color-paper: var(--mt-text);
+  --color-text-2: var(--mt-text2);
+  --color-muted: var(--mt-muted);
+  --color-dim: var(--mt-dim);
+  --color-link: var(--mt-lime-text);
+  --color-accent-text: var(--mt-accent-text);
+
+  /* Same in both modes */
+  --color-on-accent: #121117;
+  --color-lime: #C8F031;
+  --color-lime-hover: #D8FF5A;
+  --color-coral: #FF7A5C;
+  --color-cyan: #3FD0E0;
+  --color-violet: #A98BFF;
+  --color-amber: #FFC23D;
+  --color-pink: #FF6FB5;
+
+  --font-display: "Unbounded", system-ui, sans-serif;
+  --font-sans: "Instrument Sans", system-ui, sans-serif;
+  --font-mono: "DM Mono", ui-monospace, monospace;
+
+  --radius-pill: 999px;
+  --radius-sheet: 22px;
+  --radius-board: 18px;
+  --radius-poster-lg: 16px;
+  --radius-poster: 14px;
+  --radius-card: 12px;
+  --radius-tile: 10px;
+
+  --shadow-poster-lg: var(--mt-shadow-lg);
+  --shadow-poster: var(--mt-shadow);
+  --shadow-hole: var(--mt-hole);
+  --shadow-cta: 0 0 28px rgba(200, 240, 49, .4);
+
+  --animate-fade: fade .25s ease both;
+  --animate-in: rise .4s ease both;
+  --animate-pop: pop .14s ease-out both;
+
+  @keyframes fade { from { opacity: 0 } to { opacity: 1 } }
+  @keyframes rise { from { opacity: 0; transform: translateY(14px) } to { opacity: 1; transform: none } }
+  @keyframes pop { from { opacity: 0; transform: scale(.4) } to { opacity: 1; transform: scale(1) } }
+}
+
+:root {
+  color-scheme: dark;
+  --mt-bg: #0E0D12; --mt-canvas: #15141B; --mt-surface: #17161D; --mt-cardback: #1B1A22; --mt-raised: #201F28;
+  --mt-hair: #22212A; --mt-line: #2E2C38; --mt-line2: #3A3846; --mt-line3: #4A4858;
+  --mt-text: #F4F2F7; --mt-text2: #C9C6D2; --mt-muted: #A8A5B3; --mt-dim: #6F6C7A;
+  --mt-lime-text: #C8F031; --mt-lime-line: #4A5A1C;
+  --mt-accent-text: currentColor; /* in dark, use the game accent directly, e.g. style={{color: game.color}} */
+  --mt-header: rgba(14,13,18,.86); --mt-backdrop: rgba(8,7,11,.74); --mt-overlay: rgba(14,13,18,.8);
+  --mt-shadow-lg: 0 40px 80px -30px rgba(0,0,0,.8); --mt-shadow: 0 24px 48px -28px rgba(0,0,0,.9); --mt-hole: inset 0 6px 16px rgba(0,0,0,.6);
+  --mt-x: #C8F031; --mt-o: #A98BFF;
+  --mt-sn-dot: #2A2934; --mt-sn-body: #C8F031; --mt-sn-head: #E2FF84;
+  --mt-tile2: #2E2C38; --mt-tile4: #3B3947;
+}
+
+[data-theme=light] {
+  color-scheme: light;
+  --mt-bg: #F4F3F7; --mt-canvas: #FDFCFE; --mt-surface: #FDFCFE; --mt-cardback: #E9E7EE; --mt-raised: #ECEAF0;
+  --mt-hair: #E2E0E8; --mt-line: #D8D5DF; --mt-line2: #C4C1CD; --mt-line3: #9C99A6;
+  --mt-text: #121117; --mt-text2: #3D3A46; --mt-muted: #5E5B68; --mt-dim: #6B6875;
+  --mt-lime-text: #4C610B; --mt-lime-line: #B9CF6A;
+  --mt-accent-text: #121117; /* accents never used as text on light grounds */
+  --mt-header: rgba(244,243,247,.86); --mt-backdrop: rgba(28,26,36,.45); --mt-overlay: rgba(244,243,247,.88);
+  --mt-shadow-lg: 0 40px 70px -34px rgba(40,30,70,.45); --mt-shadow: 0 22px 40px -26px rgba(40,30,70,.45); --mt-hole: inset 0 4px 10px rgba(40,30,70,.16);
+  --mt-x: #121117; --mt-o: #6E4FE0;
+  --mt-sn-dot: #E2E0E8; --mt-sn-body: #8DB800; --mt-sn-head: #5F7D00;
+  --mt-tile2: #D8D5DF; --mt-tile4: #C4C1CD;
+}
+
+html, body { background: var(--mt-bg); color: var(--mt-text); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
