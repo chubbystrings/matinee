@@ -1,4 +1,6 @@
-export type GameId = 'snake' | 'merge' | 'recall' | 'noughts' | 'quickdraw' | 'popup'
+import type { GAME_IDS } from './ids'
+
+export type GameId = (typeof GAME_IDS)[number]
 export type Genre = 'Arcade' | 'Puzzle' | 'Classic' | 'Reflex'
 
 export type GameMeta = {
@@ -19,6 +21,8 @@ export type GameMeta = {
   bestMode: 'higher' | 'lower'
   /** e.g. ' ms', ' moves', ' wins' */
   bestUnit?: string
+  /** The stage scrolls vertically (tall layouts); other games lock touch scrolling. */
+  scrollable?: boolean
 }
 
 export type StatValue = { label: string; value: string | number }

@@ -26,6 +26,11 @@ export default [
       'playwright-report',
       'test-results',
       'project_doc',
+      '.output',
+      '.nitro',
+      '.tanstack',
+      'dist',
+      'dev-dist',
     ],
   },
 ]

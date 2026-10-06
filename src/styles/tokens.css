@@ -62,7 +62,7 @@
   color-scheme: dark;
   --mt-bg: #0E0D12; --mt-canvas: #15141B; --mt-surface: #17161D; --mt-cardback: #1B1A22; --mt-raised: #201F28;
   --mt-hair: #22212A; --mt-line: #2E2C38; --mt-line2: #3A3846; --mt-line3: #4A4858;
-  --mt-text: #F4F2F7; --mt-text2: #C9C6D2; --mt-muted: #A8A5B3; --mt-dim: #6F6C7A;
+  --mt-text: #F4F2F7; --mt-text2: #C9C6D2; --mt-muted: #A8A5B3; --mt-dim: #85828F; /* design value #6F6C7A is 3.8:1 on bg; lifted to pass WCAG AA (4.5:1) */
   --mt-lime-text: #C8F031; --mt-lime-line: #4A5A1C;
   --mt-accent-text: currentColor; /* in dark, use the game accent directly, e.g. style={{color: game.color}} */
   --mt-header: rgba(14,13,18,.86); --mt-backdrop: rgba(8,7,11,.74); --mt-overlay: rgba(14,13,18,.8);

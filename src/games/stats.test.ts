@@ -17,7 +17,14 @@ describe('defaultStats', () => {
       noughts: ['W–L–D', 'Best'],
       quickdraw: ['Last', 'Best'],
       popup: ['Hits', 'Time'],
+      whot: ['Wins', 'Streak'],
     })
+  })
+  it('whot shows wins and streak from the whot store values', () => {
+    const w = GAMES.find((g) => g.id === 'whot')!
+    const s = defaultStats(w, undefined, { wins: 4, streak: 2 })
+    expect(s.primary).toEqual({ label: 'Wins', value: 4 })
+    expect(s.secondary).toEqual({ label: 'Streak', value: 2 })
   })
   it('formats best with unit', () => {
     const q = GAMES.find((g) => g.id === 'quickdraw')!

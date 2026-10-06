@@ -27,6 +27,11 @@ export const GAMES: ReadonlyArray<GameMeta> = [
     tagline: 'Thirty seconds. Nine holes. Hit everything.',
     synopsis: 'Targets pop out of nine holes. Hit as many as you can in thirty seconds. The better you do, the faster they come.',
     bestMode: 'higher', bestUnit: ' hits' },
+  { id: 'whot', no: '07', title: 'Whot', genre: 'Classic', color: '#FFC23D', glyph: 'W', glyphSize: '110cqw', time: '5–10 min', players: 'You vs CPU', controls: 'Tap a card · Tap market to draw',
+    tagline: 'Match shape or number. Empty your hand first.',
+    synopsis: 'The Nigerian card game. Match the top card by shape or number, use Hold On, Pick Two and WHOT to control the table, and empty your hand before the CPU does. If the market runs out, the lowest hand total wins.',
+    // Wins and streaks live in the Whot store (matinee.whot.v1), not the shared best-score store.
+    bestMode: 'higher', bestUnit: ' wins', scrollable: true },
 ]
 
 export const GAME_BY_ID: ReadonlyMap<GameId, GameMeta> = new Map(GAMES.map((g) => [g.id, g]))
@@ -48,6 +53,7 @@ const LOADERS: Record<GameId, Loader> = {
   noughts: () => import('./noughts/Noughts'),
   quickdraw: () => import('./quickdraw/Quickdraw'),
   popup: () => import('./popup/PopUp'),
+  whot: () => import('./whot/Whot'),
 }
 
 export const GAME_COMPONENTS = Object.fromEntries(

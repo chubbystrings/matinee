@@ -1,10 +1,10 @@
-@import "@fontsource/unbounded/600.css";
-@import "@fontsource/unbounded/800.css";
-@import "@fontsource/instrument-sans/400.css";
-@import "@fontsource/instrument-sans/500.css";
-@import "@fontsource/instrument-sans/600.css";
-@import "@fontsource/dm-mono/400.css";
-@import "@fontsource/dm-mono/500.css";
+@import "@fontsource/unbounded/latin-600.css";
+@import "@fontsource/unbounded/latin-800.css";
+@import "@fontsource/instrument-sans/latin-400.css";
+@import "@fontsource/instrument-sans/latin-500.css";
+@import "@fontsource/instrument-sans/latin-600.css";
+@import "@fontsource/dm-mono/latin-400.css";
+@import "@fontsource/dm-mono/latin-500.css";
 @import "./styles/tokens.css";
 
 * {
@@ -17,6 +17,6 @@ body {
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-lime);
+  outline: 2px solid var(--mt-lime-text);
   outline-offset: 2px;
 }

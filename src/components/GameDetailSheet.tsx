@@ -1,15 +1,14 @@
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useRef } from 'react'
 import { Poster } from '#/components/Poster'
-import { formatBest } from '#/games/best'
 import { preloadGame } from '#/games/registry'
 import type { GameMeta } from '#/games/types'
-import { useScores } from '#/store/scores'
+import { useBestLabel } from '#/games/useBestLabel'
 
 export function GameDetailSheet({ game }: { game: GameMeta }) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const navigate = useNavigate()
-  const best = useScores((s) => s.best[game.id])
+  const bestLabel = useBestLabel(game)
 
   // Native <dialog>: modal focus trap, inert page, Esc, and focus return to the opener.
   const openModal = (el: HTMLDialogElement | null) => {
@@ -30,7 +29,7 @@ export function GameDetailSheet({ game }: { game: GameMeta }) {
     ['Session', game.time],
     ['Players', game.players],
     ['Controls', game.controls],
-    ['Your best', formatBest(game, best)],
+    ['Your best', bestLabel],
   ] as const
 
   return (

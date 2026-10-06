@@ -1,14 +1,24 @@
 import { expect, test } from '@playwright/test'
 
-test('grid shows six posters and filters by genre via URL', async ({ page }) => {
+test('grid shows seven posters and filters by genre via URL', async ({
+  page,
+}) => {
   await page.goto('/')
-  await expect(page.locator('[data-game]')).toHaveCount(6)
+  await page.waitForLoadState('networkidle')
+  await expect(page.locator('[data-game]')).toHaveCount(7)
   await page.getByRole('link', { name: /^Puzzle/ }).click()
   await expect(page).toHaveURL(/genre=Puzzle/)
   await expect(page.locator('[data-game]')).toHaveCount(2)
   await expect(page.getByText('2 features')).toBeVisible()
   await page.getByRole('link', { name: /^All/ }).click()
-  await expect(page.locator('[data-game]')).toHaveCount(6)
+  await expect(page.locator('[data-game]')).toHaveCount(7)
+})
+
+test('Classic filter lists Noughts and Whot', async ({ page }) => {
+  await page.goto('/?genre=Classic')
+  await expect(page.locator('[data-game]')).toHaveCount(2)
+  await expect(page.locator('[data-game="whot"]')).toBeVisible()
+  await expect(page.locator('[data-game="noughts"]')).toBeVisible()
 })
 
 test('deep link with genre filter', async ({ page }) => {
@@ -20,11 +30,15 @@ test('grid column count follows viewport', async ({ page }, info) => {
   await page.goto('/')
   const cols = await page
     .getByTestId('grid')
-    .evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(' ').length)
+    .evaluate(
+      (el) => getComputedStyle(el).gridTemplateColumns.split(' ').length,
+    )
   expect(cols).toBe(info.project.name === 'mobile' ? 2 : 6)
 })
 
-test('hero auto-rotates every 7s and dots select a feature', async ({ page }) => {
+test('hero auto-rotates every 7s and dots select a feature', async ({
+  page,
+}) => {
   await page.clock.install()
   await page.goto('/')
   const title = page.getByTestId('hero-title')
@@ -46,7 +60,9 @@ test('hero pauses while a game detail is open', async ({ page }) => {
   await expect(page.getByTestId('hero-title')).toHaveText('Serpent')
 })
 
-test('filtering and opening/closing the sheet do not jump to the top', async ({ page }) => {
+test('filtering and opening/closing the sheet do not jump to the top', async ({
+  page,
+}) => {
   await page.goto('/')
   await page.waitForLoadState('networkidle')
   await page.evaluate(() => window.scrollTo(0, 400))
@@ -67,7 +83,9 @@ test('filtering and opening/closing the sheet do not jump to the top', async ({ 
   await expect(page.getByRole('dialog')).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog')).toBeHidden()
-  expect(Math.abs((await page.evaluate(() => window.scrollY)) - before)).toBeLessThan(5)
+  expect(
+    Math.abs((await page.evaluate(() => window.scrollY)) - before),
+  ).toBeLessThan(5)
 })
 
 for (const [iso, label] of [
@@ -76,7 +94,9 @@ for (const [iso, label] of [
   ['2026-10-06T19:00:00', 'This evening’s feature'],
   ['2026-10-06T23:30:00', 'Tonight’s feature'],
 ] as const) {
-  test(`hero kicker follows the viewer's local time (${label})`, async ({ page }) => {
+  test(`hero kicker follows the viewer's local time (${label})`, async ({
+    page,
+  }) => {
     await page.clock.setFixedTime(new Date(iso))
     await page.goto('/')
     await expect(page.getByText(label)).toBeVisible()

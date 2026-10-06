@@ -12,8 +12,8 @@ describe('best helpers', () => {
     expect(formatBest({ bestUnit: ' ms' }, 243)).toBe('243 ms')
     expect(formatBest({}, undefined)).toBe('—')
   })
-  it('registry has six unique games', () => {
-    expect(new Set(GAMES.map((g) => g.id)).size).toBe(6)
+  it('registry has seven unique games', () => {
+    expect(new Set(GAMES.map((g) => g.id)).size).toBe(7)
     expect(isGameId('snake')).toBe(true)
     expect(isGameId('nope')).toBe(false)
   })

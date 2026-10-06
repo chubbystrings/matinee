@@ -1,8 +1,8 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import type { GameProps } from '#/games/types'
 import { useScores } from '#/store/scores'
-import {  phaseView, pushTry, waitDelay } from './logic'
-import type {Phase} from './logic';
+import { phaseView, pushTry, waitDelay } from './logic'
+import type { Phase } from './logic'
 
 export default function Quickdraw({ onStats, onResult }: GameProps) {
   const [phase, setPhase] = useState<Phase>('idle')
@@ -26,7 +26,10 @@ export default function Quickdraw({ onStats, onResult }: GameProps) {
       setNewBest(isBest)
       setTries((t) => pushTry(t, elapsed))
       setPhase('result')
-      onStats({ primary: { label: 'Last', value: `${elapsed} ms` }, secondary: { label: 'Best', value: `${best} ms` } })
+      onStats({
+        primary: { label: 'Last', value: `${elapsed} ms` },
+        secondary: { label: 'Best', value: `${best} ms` },
+      })
       return
     }
     setPhase('wait')
@@ -67,13 +70,21 @@ export default function Quickdraw({ onStats, onResult }: GameProps) {
         onPointerDown={tap}
         data-phase={phase}
         data-testid="qd-panel"
+        aria-live="polite"
         className="flex h-[min(58vh,440px)] w-[min(92vw,680px)] cursor-pointer flex-col items-center justify-center gap-3.5 rounded-[22px] border border-ink-600 p-6 text-center transition-[background-color] duration-[80ms]"
         style={{ background: view.bg, color: view.fg }}
       >
-        <div className="font-display text-[clamp(36px,8vw,76px)] leading-none font-extrabold uppercase">{view.big}</div>
-        <div className="max-w-[36ch] text-base leading-normal opacity-85">{view.small}</div>
+        <div className="font-display text-[clamp(36px,8vw,76px)] leading-none font-extrabold uppercase">
+          {view.big}
+        </div>
+        <div className="max-w-[36ch] text-base leading-normal opacity-85">
+          {view.small}
+        </div>
       </div>
-      <ul className="flex min-h-[30px] flex-wrap justify-center gap-2" aria-label="Recent tries">
+      <ul
+        className="flex min-h-[30px] flex-wrap justify-center gap-2"
+        aria-label="Recent tries"
+      >
         {tries.map((t, i) => (
           <li
             key={`${tries.length - i}`}

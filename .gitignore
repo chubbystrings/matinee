@@ -49,3 +49,6 @@ Thumbs.db
 todos.json
 project_doc
 docs
+
+# Vercel
+.vercel

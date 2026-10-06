@@ -2,7 +2,11 @@ import type { GameMeta } from '#/games/types'
 
 type Variant = 'grid' | 'hero' | 'sheet'
 
-const RADIUS: Record<Variant, string> = { grid: 'rounded-poster', hero: 'rounded-poster-lg', sheet: 'rounded-poster' }
+const RADIUS: Record<Variant, string> = {
+  grid: 'rounded-poster',
+  hero: 'rounded-poster-lg',
+  sheet: 'rounded-poster',
+}
 
 function titleSize(title: string, variant: Variant) {
   const long = title.length > 7
@@ -11,19 +15,25 @@ function titleSize(title: string, variant: Variant) {
 }
 
 /** Typographic poster. Every size is in cqw so it scales with the card. */
-export function Poster({ game, variant = 'grid' }: { game: GameMeta; variant?: Variant }) {
+export function Poster({
+  game,
+  variant = 'grid',
+}: {
+  game: GameMeta
+  variant?: Variant
+}) {
   return (
     <div
       className={`relative aspect-[2/3] w-full overflow-hidden text-on-accent [container-type:inline-size] ${RADIUS[variant]} ${variant === 'hero' ? 'shadow-poster-lg' : 'shadow-poster'}`}
       style={{ backgroundColor: game.color }}
     >
+      {/* Decorative watermark: drawn via CSS content so it is not text in the accessibility tree. */}
       <div
         aria-hidden
-        className="absolute inset-0 grid place-items-center overflow-hidden whitespace-nowrap pb-[18%] font-display font-extrabold leading-[.8]"
+        data-glyph={game.glyph}
+        className="absolute inset-0 grid place-items-center overflow-hidden whitespace-nowrap pb-[18%] font-display font-extrabold leading-[.8] after:content-[attr(data-glyph)]"
         style={{ fontSize: game.glyphSize, color: 'rgba(18,17,23,.2)' }}
-      >
-        {game.glyph}
-      </div>
+      />
       <div className="absolute inset-x-[7cqw] top-[6cqw] flex justify-between font-mono text-[5.4cqw] uppercase tracking-[.12em]">
         <span>No. {game.no}</span>
         <span>{game.genre}</span>

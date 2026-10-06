@@ -13,13 +13,15 @@ const BULBS = (
     aria-hidden
     className="h-2.5 opacity-55"
     style={{
-      backgroundImage: 'radial-gradient(circle, #FFC23D 0 2px, transparent 3px)',
+      backgroundImage:
+        'radial-gradient(circle, #FFC23D 0 2px, transparent 3px)',
       backgroundSize: '18px 10px',
     }}
   />
 )
 
-const META_PILL = 'rounded-pill border border-ink-600 px-3 py-1.5 font-mono text-xs uppercase'
+const META_PILL =
+  'rounded-pill border border-ink-600 px-3 py-1.5 font-mono text-xs uppercase'
 
 export function Hero({ paused }: { paused: boolean }) {
   const [featIdx, setFeatIdx] = useState(0)
@@ -44,7 +46,9 @@ export function Hero({ paused }: { paused: boolean }) {
       <div
         aria-hidden
         className="absolute inset-0"
-        style={{ background: `radial-gradient(55% 75% at 78% 50%, ${game.color}26 0%, transparent 70%)` }}
+        style={{
+          background: `radial-gradient(55% 75% at 78% 50%, ${game.color}26 0%, transparent 70%)`,
+        }}
       />
       <div className="relative">{BULBS}</div>
       <div className="relative mx-auto flex max-w-[1240px] flex-wrap items-center gap-[clamp(36px,6vw,72px)] px-[clamp(16px,4vw,40px)] py-[clamp(36px,7vw,84px)]">
@@ -57,7 +61,9 @@ export function Hero({ paused }: { paused: boolean }) {
             key={game.id}
             data-testid="hero-title"
             className={`animate-in font-display font-extrabold uppercase leading-[.9] tracking-[-.02em] text-(--accent) light:text-on-accent ${
-              longTitle ? 'text-[clamp(34px,5.6vw,76px)]' : 'text-[clamp(40px,7.4vw,96px)]'
+              longTitle
+                ? 'text-[clamp(34px,5.6vw,76px)]'
+                : 'text-[clamp(40px,7.4vw,96px)]'
             }`}
           >
             {game.title}
@@ -92,7 +98,7 @@ export function Hero({ paused }: { paused: boolean }) {
               Details
             </Link>
           </div>
-          <div className="flex gap-2" role="group" aria-label="Choose feature">
+          <div className="-ml-2 flex" role="group" aria-label="Choose feature">
             {GAMES.map((g, i) => (
               <button
                 key={g.id}
@@ -100,10 +106,17 @@ export function Hero({ paused }: { paused: boolean }) {
                 aria-label={`Show ${g.title}`}
                 aria-pressed={i === featIdx}
                 onClick={() => setFeatIdx(i)}
-                className={`h-2 cursor-pointer rounded-lg transition-[width,background-color] duration-300 ${
-                  i === featIdx ? 'w-7 bg-paper' : 'w-2 bg-ink-500'
-                }`}
-              />
+                // 24px-tall hit area around the 8px dot (WCAG 2.2 target size); the dot itself is the span.
+                className="group flex h-6 cursor-pointer items-center px-2"
+              >
+                <span
+                  className={`block h-2 rounded-lg transition-[width,background-color] duration-300 ${
+                    i === featIdx
+                      ? 'w-7 bg-paper'
+                      : 'w-2 bg-ink-500 group-hover:bg-muted'
+                  }`}
+                />
+              </button>
             ))}
           </div>
         </div>

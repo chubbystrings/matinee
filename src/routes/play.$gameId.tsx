@@ -6,8 +6,11 @@ import { defaultStats } from '#/games/stats'
 import type { GameMeta, GameStats } from '#/games/types'
 import { useEscapeToLobby } from '#/hooks/useEscapeToLobby'
 import { useScores } from '#/store/scores'
+import { useWhotStats } from '#/store/whot'
 
 export const Route = createFileRoute('/play/$gameId')({
+  // Games deal and shuffle with Math.random, so a server render could never match the client.
+  ssr: false,
   beforeLoad: ({ params }) => {
     if (!isGameId(params.gameId)) throw redirect({ to: '/' })
   },
@@ -26,11 +29,14 @@ function PlayScreen({ game }: { game: GameMeta }) {
   const best = useScores((s) => s.best[game.id])
   const recordBest = useScores((s) => s.recordBest)
   const { snakeSpeed, cpuLevel } = useScores((s) => s.settings)
+  const whotWins = useWhotStats((s) => s.wins)
+  const whotStreak = useWhotStats((s) => s.streak)
   const [reported, setReported] = useState<GameStats | null>(null)
   const [round, setRound] = useState(0)
 
   const Game = GAME_COMPONENTS[game.id]
-  const stats = reported ?? defaultStats(game, best)
+  const stats =
+    reported ?? defaultStats(game, best, { wins: whotWins, streak: whotStreak })
 
   // Restart = remount via key, which resets every piece of game state.
   const restart = () => {
@@ -41,7 +47,14 @@ function PlayScreen({ game }: { game: GameMeta }) {
   return (
     <div className="fixed inset-0 flex animate-fade flex-col bg-ink-900 text-paper">
       <PlayTopBar game={game} stats={stats} onRestart={restart} />
-      <div className="flex flex-1 touch-none select-none flex-col items-center justify-center gap-[18px] overflow-hidden px-4 py-[18px]">
+      <main
+        className={`flex flex-1 select-none flex-col items-center gap-[18px] px-4 py-[18px] ${
+          // Tall layouts scroll vertically (children centre themselves with my-auto); the rest lock touch.
+          game.scrollable
+            ? 'touch-pan-y overflow-y-auto'
+            : 'touch-none justify-center overflow-hidden'
+        }`}
+      >
         <Suspense
           fallback={
             <div className="rounded-[10px] bg-ink-800 px-4 py-2 font-mono text-xs uppercase tracking-[.1em] text-dim">
@@ -56,7 +69,7 @@ function PlayScreen({ game }: { game: GameMeta }) {
             settings={{ snakeSpeed, cpuLevel }}
           />
         </Suspense>
-      </div>
+      </main>
       <div className="px-4 pb-3.5 text-center font-mono text-[11px] uppercase tracking-[.1em] text-dim">
         {game.controls} · Esc to exit
       </div>
