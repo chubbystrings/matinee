@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { launch } from './launch'
 
 test('unknown game id redirects to the lobby', async ({ page }) => {
   await page.goto('/play/bogus')
@@ -7,7 +8,7 @@ test('unknown game id redirects to the lobby', async ({ page }) => {
 })
 
 test('play view shows title, stats, hint and loads the game', async ({ page }) => {
-  await page.goto('/play/merge')
+  await launch(page, '/play/merge')
   await expect(page.getByRole('heading', { name: 'Merge' })).toBeVisible()
   await expect(page.getByText('Score', { exact: true })).toBeVisible()
   await expect(page.getByText('Best', { exact: true })).toBeVisible()
@@ -15,20 +16,20 @@ test('play view shows title, stats, hint and loads the game', async ({ page }) =
 })
 
 test('Esc and ← Lobby both return to the lobby', async ({ page }) => {
-  await page.goto('/play/recall')
+  await launch(page, '/play/recall')
   await page.waitForLoadState('networkidle')
   await expect(async () => {
     await page.keyboard.press('Escape')
     await expect(page).toHaveURL(/localhost:3000\/$/, { timeout: 500 })
   }).toPass()
 
-  await page.goto('/play/recall')
+  await launch(page, '/play/recall')
   await page.getByRole('link', { name: '← Lobby' }).click()
   await expect(page).toHaveURL(/localhost:3000\/$/)
 })
 
 test('restart button is present and keeps the view', async ({ page }) => {
-  await page.goto('/play/popup')
+  await launch(page, '/play/popup')
   await page.waitForLoadState('networkidle')
   await page.getByRole('button', { name: 'Restart' }).click()
   await expect(page.getByRole('heading', { name: 'Pop-Up' })).toBeVisible()

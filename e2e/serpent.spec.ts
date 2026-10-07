@@ -1,8 +1,9 @@
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
+import { launch } from './launch'
 
 async function open(page: Page) {
-  await page.goto('/play/snake')
+  await launch(page, '/play/snake')
   await page.waitForLoadState('networkidle')
   await expect(page.locator('canvas')).toBeVisible()
 }

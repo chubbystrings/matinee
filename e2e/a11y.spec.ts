@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
+import { launch } from './launch'
 
 const GAME_IDS = [
   'snake',
@@ -61,7 +62,7 @@ for (const theme of THEMES) {
 
     for (const id of GAME_IDS) {
       test(`play ${id}`, async ({ page }) => {
-        await page.goto(`/play/${id}`)
+        await launch(page, `/play/${id}`)
         await page.waitForLoadState('networkidle')
         await expect(page.getByRole('heading').first()).toBeVisible()
         expect(await scan(page)).toEqual([])
@@ -108,14 +109,14 @@ test('prefers-reduced-motion switches animations off', async ({ page }) => {
 })
 
 test('play view has a main landmark and one h1', async ({ page }) => {
-  await page.goto('/play/merge')
+  await launch(page, '/play/merge')
   await page.waitForLoadState('networkidle')
   await expect(page.getByRole('main')).toHaveCount(1)
   await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1)
 })
 
 test('quickdraw panel is a polite live region', async ({ page }) => {
-  await page.goto('/play/quickdraw')
+  await launch(page, '/play/quickdraw')
   await page.waitForLoadState('networkidle')
   await expect(page.getByTestId('qd-panel')).toHaveAttribute(
     'aria-live',
@@ -152,7 +153,7 @@ for (const theme of THEMES) {
       (t) => localStorage.setItem('matinee.theme', t),
       theme,
     )
-    await page.goto('/play/whot')
+    await launch(page, '/play/whot')
     await page.waitForLoadState('networkidle')
     await page.getByTestId('whot-log-pill').click()
     await expect(

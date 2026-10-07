@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { Locator, Page } from '@playwright/test'
+import { launch } from './launch'
 
 /** Deterministic Math.random (mulberry32) so the deal is reproducible. */
 // Seed 2: the player moves first and the starter is a plain card, so no timer exists before the fake clock is installed.
@@ -16,7 +17,7 @@ async function seed(page: Page, s = 2) {
 }
 
 async function open(page: Page, { fakeClock = true } = {}) {
-  await page.goto('/play/whot')
+  await launch(page, '/play/whot')
   await page.waitForLoadState('networkidle')
   await expect(page.getByTestId('whot-card').first()).toBeVisible()
   if (!fakeClock) return
@@ -148,6 +149,9 @@ test('difficulty toggle persists in matinee.whot.level', async ({ page }) => {
   )
   expect(JSON.parse(stored ?? '{}').state.level).toBe('Hard')
   await page.reload()
+  await page
+    .getByRole('button', { name: 'PRESS START' })
+    .click({ timeout: 10_000 })
   await expect(page.getByRole('button', { name: 'Hard' })).toHaveAttribute(
     'aria-pressed',
     'true',
@@ -249,7 +253,7 @@ test('play view stat pills read from the stored wins and streak', async ({
       }),
     ),
   )
-  await page.goto('/play/whot')
+  await launch(page, '/play/whot')
   await page.waitForLoadState('networkidle')
   await expect(page.getByText('5', { exact: true }).first()).toBeVisible()
   await expect(page.getByText('2', { exact: true }).first()).toBeVisible()

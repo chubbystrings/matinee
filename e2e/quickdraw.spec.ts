@@ -1,5 +1,6 @@
 import { expect, test  } from '@playwright/test'
 import type {Page} from '@playwright/test';
+import { launch } from './launch'
 
 const panel = (page: Page) => page.getByTestId('qd-panel')
 
@@ -8,7 +9,7 @@ async function setup(page: Page) {
     Math.random = () => 0 // wait = 1200 ms
   })
   await page.clock.install()
-  await page.goto('/play/quickdraw')
+  await launch(page, '/play/quickdraw')
   await page.waitForLoadState('networkidle')
   await page.clock.pauseAt(Date.now() + 1000) // deterministic from here on
 }

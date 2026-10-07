@@ -1,5 +1,6 @@
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
 import { Suspense, useState } from 'react'
+import { GameLoader } from '#/components/GameLoader'
 import { PlayTopBar } from '#/components/PlayTopBar'
 import { GAME_BY_ID, GAME_COMPONENTS, isGameId } from '#/games/registry'
 import { defaultStats } from '#/games/stats'
@@ -21,7 +22,22 @@ function PlayRoute() {
   const { gameId } = Route.useParams()
   const game = GAME_BY_ID.get(gameId as GameMeta['id'])
   // key resets all per-game state when navigating between games
-  return game ? <PlayScreen key={game.id} game={game} /> : null
+  return game ? <Launch key={game.id} game={game} /> : null
+}
+
+/** Every launch boots through the loader first. Restart and Play again stay inside PlayScreen, so they skip it. */
+function Launch({ game }: { game: GameMeta }) {
+  const [booted, setBooted] = useState(false)
+  const navigate = useNavigate()
+  return booted ? (
+    <PlayScreen game={game} />
+  ) : (
+    <GameLoader
+      game={game}
+      onStart={() => setBooted(true)}
+      onCancel={() => void navigate({ to: '/' })}
+    />
+  )
 }
 
 function PlayScreen({ game }: { game: GameMeta }) {

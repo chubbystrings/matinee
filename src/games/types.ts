@@ -17,6 +17,8 @@ export type GameMeta = {
   players: string
   controls: string
   tagline: string
+  /** One-line hint shown on the game loader. */
+  tip: string
   synopsis: string
   bestMode: 'higher' | 'lower'
   /** e.g. ' ms', ' moves', ' wins' */

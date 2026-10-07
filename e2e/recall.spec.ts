@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
+import { launch } from './launch'
 
 const SYMS = ['◆', '●', '▲', '■', '★', '✚', '◐', '✦']
 
@@ -21,7 +22,7 @@ async function open(page: Page) {
   await page.addInitScript(() => {
     Math.random = () => 0
   })
-  await page.goto('/play/recall')
+  await launch(page, '/play/recall')
   await page.waitForLoadState('networkidle')
   // install the fake clock after hydration, then freeze time so runFor is exact
   await page.clock.install({ time: 0 })

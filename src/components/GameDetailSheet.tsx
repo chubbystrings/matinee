@@ -1,3 +1,4 @@
+import { blurTarget } from '#/lib/blurTarget'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useRef } from 'react'
 import { Poster } from '#/components/Poster'
@@ -87,6 +88,7 @@ export function GameDetailSheet({ game }: { game: GameMeta }) {
             <Link
               to="/play/$gameId"
               params={{ gameId: game.id }}
+              onClick={blurTarget}
               onPointerEnter={() => preloadGame(game.id)}
               className="inline-flex h-[52px] items-center justify-center gap-2.5 rounded-pill bg-lime px-[26px] font-display text-[13px] font-semibold uppercase tracking-[.06em] text-on-accent hover:bg-lime-hover hover:shadow-cta"
             >

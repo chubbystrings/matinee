@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
+import { launch } from './launch'
 
 /** Deterministic Math.random (mulberry32) so the board is reproducible. */
 async function seed(page: Page, s = 12345) {
@@ -15,7 +16,7 @@ async function seed(page: Page, s = 12345) {
 }
 
 async function open(page: Page) {
-  await page.goto('/play/merge')
+  await launch(page, '/play/merge')
   await page.waitForLoadState('networkidle')
   await expect(page.getByTestId('merge-cell')).toHaveCount(16)
 }

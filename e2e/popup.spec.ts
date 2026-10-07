@@ -1,8 +1,9 @@
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
+import { launch } from './launch'
 
 async function open(page: Page) {
-  await page.goto('/play/popup')
+  await launch(page, '/play/popup')
   await page.waitForLoadState('networkidle')
   // install the fake clock after hydration, then freeze time so runFor is exact
   await page.clock.install({ time: 0 })

@@ -3,6 +3,8 @@ import type { ReactNode } from 'react'
 import { Button } from '#/components/Button'
 import { useInterval } from '#/hooks/useInterval'
 import { usePageVisible } from '#/hooks/usePageVisible'
+import { play } from '#/lib/sound'
+import type { SoundName } from '#/lib/sound'
 import { useWhotLevel, useWhotStats } from '#/store/whot'
 import {
   SHAPES,
@@ -19,6 +21,7 @@ import {
 import type { Card, Level, Shape, WhotState } from './engine'
 import { PLAY_LOG_ID, PlayLog } from './PlayLog'
 import { DEFAULT_RULES, legendEntries } from './rules'
+import { whotSounds } from './sounds'
 import { CARD_BACK_BG, MARKET_BACK_BG, SHAPE_COLOR } from './shapes'
 import { CardFace, ShapeMark } from './WhotCard'
 
@@ -168,6 +171,11 @@ function statusText(game: WhotState, myTurn: boolean, noMove: boolean) {
     : 'Your turn'
 }
 
+/** Plays the sounds for one transition: the first at once, the rest staggered. */
+function playSounds(names: ReadonlyArray<SoundName>) {
+  names.forEach((n, i) => (i ? setTimeout(() => play(n), i * 180) : play(n)))
+}
+
 function WhotBoard({ onAgain }: { onAgain: () => void }) {
   const level = useWhotLevel((s) => s.level)
   const setLevel = useWhotLevel((s) => s.setLevel)
@@ -185,6 +193,7 @@ function WhotBoard({ onAgain }: { onAgain: () => void }) {
   // Every transition goes through here so the result is recorded exactly once, from a handler or timer.
   const commit = (next: WhotState) => {
     if (next === game) return
+    playSounds(whotSounds(game, next))
     setGame(next)
     if (next.over && !game.over) record(next.over.result)
   }

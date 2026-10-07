@@ -1,5 +1,6 @@
 import { expect, test  } from '@playwright/test'
 import type {Page} from '@playwright/test';
+import { launch } from './launch'
 
 const cell = (page: Page, i: number) => page.getByRole('button', { name: new RegExp(`^Cell ${i + 1}`) })
 
@@ -8,7 +9,7 @@ async function setup(page: Page, rnd: number) {
     Math.random = () => r
   }, rnd)
   await page.clock.install()
-  await page.goto('/play/noughts')
+  await launch(page, '/play/noughts')
   await page.waitForLoadState('networkidle')
   await page.clock.pauseAt(Date.now() + 1000) // deterministic from here on
 }
