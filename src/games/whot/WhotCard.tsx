@@ -1,39 +1,60 @@
-import type { Card, CardShape } from './engine'
 import { SHAPE_CLIP } from './shapes'
+import type { Card, CardShape } from './engine'
 
-type Variant = 'hand' | 'pile' | 'cpu'
+type Variant = 'hand' | 'pile' | 'cpu' | 'log'
+
+type VariantSpec = {
+  number: string
+  /** left inset of the corner number */
+  left: string
+  shape: string
+  /** extra top padding that pushes the centre mark below the corner number */
+  shapeTop: string
+  whot: string
+  /** what a WHOT card shows in the centre */
+  whotText: string
+  /** repeat the number, rotated, in the bottom-right corner */
+  mirror: boolean
+}
 
 // Sizes are in cqw: the parent sets `container-type: inline-size`, so a card scales with its width.
-const VARIANTS: Record<
-  Variant,
-  {
-    number: string
-    shape: string
-    whot: string
-    mirror: boolean
-    shapeTop: string
-  }
-> = {
+const VARIANTS: Record<Variant, VariantSpec> = {
   hand: {
     number: '22cqw',
+    left: '8cqw',
     shape: '50cqw',
-    whot: '19cqw',
-    mirror: true,
     shapeTop: '0',
+    whot: '19cqw',
+    whotText: 'WHOT',
+    mirror: true,
   },
   pile: {
     number: '22cqw',
+    left: '8cqw',
     shape: '52cqw',
-    whot: '19cqw',
-    mirror: true,
     shapeTop: '0',
+    whot: '19cqw',
+    whotText: 'WHOT',
+    mirror: true,
   },
   cpu: {
     number: '24cqw',
+    left: '8cqw',
     shape: '46cqw',
-    whot: '17cqw',
-    mirror: false,
     shapeTop: '16cqw',
+    whot: '17cqw',
+    whotText: 'WHOT',
+    mirror: false,
+  },
+  // The play log's 24px thumbnail: too small for a mirrored number or the word WHOT.
+  log: {
+    number: '34cqw',
+    left: '10cqw',
+    shape: '46cqw',
+    shapeTop: '22cqw',
+    whot: '40cqw',
+    whotText: 'W',
+    mirror: false,
   },
 }
 
@@ -58,8 +79,8 @@ export function CardFace({ card, variant }: { card: Card; variant: Variant }) {
   return (
     <>
       <span
-        className={`${NUMBER_CLASS} left-[8cqw] top-[6cqw]`}
-        style={{ fontSize: v.number }}
+        className={`${NUMBER_CLASS} top-[6cqw]`}
+        style={{ fontSize: v.number, left: v.left }}
       >
         {card.n}
       </span>
@@ -72,7 +93,7 @@ export function CardFace({ card, variant }: { card: Card; variant: Variant }) {
             className="font-display font-extrabold"
             style={{ fontSize: v.whot }}
           >
-            WHOT
+            {v.whotText}
           </span>
         ) : (
           <ShapeMark shape={card.s} size={v.shape} />
@@ -80,7 +101,7 @@ export function CardFace({ card, variant }: { card: Card; variant: Variant }) {
       </span>
       {v.mirror ? (
         <span
-          className={`${NUMBER_CLASS} bottom-[6cqw] right-[8cqw] rotate-180`}
+          className={`${NUMBER_CLASS} right-[8cqw] bottom-[6cqw] rotate-180`}
           style={{ fontSize: v.number }}
         >
           {card.n}

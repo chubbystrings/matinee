@@ -145,3 +145,19 @@ test('dark theme: hero title uses the game accent', async ({ page }) => {
     'rgb(200, 240, 49)',
   )
 })
+
+for (const theme of THEMES) {
+  test(`axe · ${theme} · whot with the play log open`, async ({ page }) => {
+    await page.addInitScript(
+      (t) => localStorage.setItem('matinee.theme', t),
+      theme,
+    )
+    await page.goto('/play/whot')
+    await page.waitForLoadState('networkidle')
+    await page.getByTestId('whot-log-pill').click()
+    await expect(
+      page.getByRole('complementary', { name: 'Play log' }),
+    ).toBeVisible()
+    expect(await scan(page)).toEqual([])
+  })
+}

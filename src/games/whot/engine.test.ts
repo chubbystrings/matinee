@@ -15,7 +15,9 @@ import {
   shuffle,
   sortHand,
 } from './engine'
+import { DEFAULT_RULES, legendEntries, resolveRules } from './rules'
 import type { Card, CardShape, Rng, WhotState } from './engine'
+import type { Rules } from './rules'
 
 let nextId = 1000
 const c = (s: CardShape, n: number): Card => ({ id: nextId++, s, n })
@@ -42,6 +44,8 @@ function state(over: Partial<WhotState> = {}): WhotState {
     picking: false,
     over: null,
     msg: '',
+    log: [],
+    rules: DEFAULT_RULES,
     ...over,
   }
 }
@@ -126,7 +130,6 @@ describe('newGame / dealGame', () => {
   })
   it.each([
     [2, 2],
-    [5, 3],
     [14, 1],
   ])(
     'starter %i makes the first player draw %i, then the other player starts',
@@ -225,7 +228,6 @@ describe('playCard', () => {
 
   it.each([
     [2, 2],
-    [5, 3],
     [14, 1],
   ])(
     '%i makes the opponent draw %i and the same player plays again',
@@ -402,13 +404,13 @@ describe('market runs out', () => {
     })
   })
   it('ends after a penalty draw too, even if fewer cards remained than the penalty', () => {
-    const five = c('circle', 5)
+    const two = c('circle', 2)
     const s = state({
       deck: [c('star', 1)],
-      hand: [five, c('square', 9)],
+      hand: [two, c('square', 9)],
       cpu: [c('triangle', 1)],
     })
-    const n = playCard(s, 'you', five.id, 'Easy', () => 0.5)
+    const n = playCard(s, 'you', two.id, 'Easy', () => 0.5)
     expect(n.cpu).toHaveLength(2)
     expect(n.deck).toHaveLength(0)
     expect(n.over?.reason).toBe('count')
@@ -472,17 +474,28 @@ describe('CPU', () => {
     const s = state({ turn: 'cpu', cpu: [plain, pick2] })
     expect(pickCpuCard(s, [plain, pick2], 'Hard', () => 0)).toBe(pick2)
   })
-  it('Hard ranks Pick three over Pick two over General market, and adds +20 when you hold ≤2', () => {
+  it('Hard ranks General market over Pick two, and adds +20 to a 2 when you hold ≤2', () => {
     const two = c('circle', 2)
-    const five = c('circle', 5)
     const gm = c('circle', 14)
-    const s = state({ turn: 'cpu', cpu: [two, five, gm] })
-    expect(pickCpuCard(s, [two, five, gm], 'Hard', () => 0)).toBe(five)
-    // 14 beats 2 normally? 14: 3*1+5.6+34 = 42.6; 2: 3+0.8+36 = 39.8
+    const s = state({ turn: 'cpu', cpu: [two, gm] })
+    // 14: 3*1 + 5.6 + 34 = 42.6; 2: 3 + 0.8 + 36 = 39.8
     expect(pickCpuCard(s, [two, gm], 'Hard', () => 0)).toBe(gm)
     // with the player at ≤2 cards the 2 gets +20 and overtakes
     const danger = state({ turn: 'cpu', cpu: [two, gm], hand: [c('star', 1)] })
     expect(pickCpuCard(danger, [two, gm], 'Hard', () => 0)).toBe(two)
+  })
+  it('Hard treats 5 as a plain card: no special bonus, even when you hold ≤2', () => {
+    const five = c('circle', 5)
+    const twelve = c('circle', 12)
+    // plain scores: 5 → 3*2 + 2 = 8; 12 → 3*2 + 4.8 = 10.8, so the 12 wins (a special 5 would have won)
+    const s = state({ turn: 'cpu', cpu: [five, twelve] })
+    expect(pickCpuCard(s, [five, twelve], 'Hard', () => 0)).toBe(twelve)
+    const danger = state({
+      turn: 'cpu',
+      cpu: [five, twelve],
+      hand: [c('star', 1)],
+    })
+    expect(pickCpuCard(danger, [five, twelve], 'Hard', () => 0)).toBe(twelve)
   })
   it('Hard avoids WHOT unless it is the only legal card', () => {
     const whot = c('whot', 20)
@@ -528,5 +541,527 @@ describe('sortHand', () => {
       'star1',
       'whot20',
     ])
+  })
+})
+
+describe('5 is a plain card', () => {
+  const rng = () => 0.5
+
+  it('playing a 5 has no effect on the opponent and the turn passes', () => {
+    const five = c('circle', 5)
+    const s = state({ hand: [five, c('square', 9)] })
+    const n = playCard(s, 'you', five.id, 'Easy', rng)
+    expect(n.cpu).toHaveLength(s.cpu.length)
+    expect(n.deck).toHaveLength(s.deck.length)
+    expect(n.turn).toBe('cpu')
+    expect(n.msg).toBe('You played Circle 5.')
+  })
+
+  it('the CPU playing a 5 does not make you draw and passes the turn to you', () => {
+    const five = c('triangle', 5)
+    const s = state({
+      pile: [c('triangle', 9)],
+      turn: 'cpu',
+      cpu: [five, c('star', 8)],
+    })
+    const n = playCard(s, 'cpu', five.id, 'Easy', rng)
+    expect(n.hand).toHaveLength(s.hand.length)
+    expect(n.turn).toBe('you')
+    expect(n.msg).toBe('CPU played Triangle 5.')
+  })
+
+  it('follows normal matching: any 5 matches a 5, and shape still matches', () => {
+    const s = state({ pile: [c('circle', 5)] })
+    expect(canPlay(c('square', 5), s)).toBe(true)
+    expect(canPlay(c('circle', 9), s)).toBe(true)
+    expect(canPlay(c('square', 9), s)).toBe(false)
+  })
+
+  it('a 5 starter changes nothing', () => {
+    const filler = Array.from({ length: 36 }, (_, i) => c('star', (i % 3) + 1))
+    const dealt = Array.from({ length: 8 }, (_, i) => c('square', 10 + (i % 2)))
+    const g = dealGame(
+      [...filler, c('circle', 5), ...dealt],
+      'you',
+      'Easy',
+      rng,
+    )
+    expect(g.turn).toBe('you')
+    expect(g.hand).toHaveLength(4)
+    expect(g.cpu).toHaveLength(4)
+    expect(g.msg).toBe('You go first.')
+  })
+
+  it('emptying your hand on a 5 still wins', () => {
+    const five = c('circle', 5)
+    const n = playCard(state({ hand: [five] }), 'you', five.id, 'Easy', rng)
+    expect(n.over).toEqual({ result: 'win', reason: 'out' })
+  })
+
+  it('the legend no longer lists a 5', () => {
+    expect(legendEntries(DEFAULT_RULES).map((l) => l.n)).toEqual([
+      1, 2, 8, 14, 20,
+    ])
+  })
+})
+
+describe('rules are data: the same engine under a different ruleset', () => {
+  const rng = () => 0.5
+  const withRules = (rules: Rules, over: Partial<WhotState> = {}) =>
+    state({ rules, ...over })
+  const ALL_ON = resolveRules({ specials: { 5: true } })
+  const ALL_OFF = resolveRules({
+    specials: { 1: false, 2: false, 5: false, 8: false, 14: false },
+  })
+
+  it('the rules live in the state, so a game keeps them to the end', () => {
+    expect(state().rules).toBe(DEFAULT_RULES)
+    const g = newGame(Math.random, 'Easy', ALL_ON)
+    expect(g.rules).toBe(ALL_ON)
+    const five = c('circle', 5)
+    expect(
+      playCard(
+        withRules(ALL_ON, { hand: [five, c('square', 9)] }),
+        'you',
+        five.id,
+        'Easy',
+        rng,
+      ).rules,
+    ).toBe(ALL_ON)
+  })
+
+  it('with 5 enabled it is Pick three again: the opponent draws 3 and you play again', () => {
+    const five = c('circle', 5)
+    const s = withRules(ALL_ON, { hand: [five, c('square', 9)] })
+    const n = playCard(s, 'you', five.id, 'Easy', rng)
+    expect(n.cpu).toHaveLength(s.cpu.length + 3)
+    expect(n.turn).toBe('you')
+    expect(n.msg).toBe(
+      'You played Circle 5. Pick three: CPU draws 3. Play again.',
+    )
+  })
+
+  it('with 5 enabled a 5 starter makes the first player draw 3', () => {
+    const filler = Array.from({ length: 36 }, (_, i) => c('star', (i % 3) + 1))
+    const dealt = Array.from({ length: 8 }, (_, i) => c('square', 10 + (i % 2)))
+    const g = dealGame(
+      [...filler, c('circle', 5), ...dealt],
+      'you',
+      'Easy',
+      rng,
+      ALL_ON,
+    )
+    expect(g.hand).toHaveLength(7)
+    expect(g.turn).toBe('cpu')
+    expect(g.msg).toContain('Starter is Pick three: You draw 3.')
+  })
+
+  it('Hard CPU weights an enabled 5 above Pick two and plain cards', () => {
+    const five = c('circle', 5)
+    const two = c('circle', 2)
+    const twelve = c('circle', 12)
+    const s = withRules(ALL_ON, { turn: 'cpu', cpu: [five, two, twelve] })
+    expect(pickCpuCard(s, [five, two, twelve], 'Hard', () => 0)).toBe(five)
+    // the same hand under the default rules: 5 is plain, so the 2 wins
+    const d = state({ turn: 'cpu', cpu: [five, two, twelve] })
+    expect(pickCpuCard(d, [five, two, twelve], 'Hard', () => 0)).toBe(two)
+  })
+
+  it('a disabled special is a plain card: no effect and the turn passes', () => {
+    for (const num of [1, 2, 8, 14]) {
+      const card = c('circle', num)
+      const s = withRules(ALL_OFF, { hand: [card, c('square', 9)] })
+      const n = playCard(s, 'you', card.id, 'Easy', rng)
+      expect(n.cpu, `card ${num}`).toHaveLength(s.cpu.length)
+      expect(n.turn, `card ${num}`).toBe('cpu')
+      expect(n.msg, `card ${num}`).toBe(`You played Circle ${num}.`)
+    }
+  })
+
+  it('disabled starters do nothing', () => {
+    const filler = Array.from({ length: 36 }, (_, i) => c('star', (i % 3) + 1))
+    const dealt = Array.from({ length: 8 }, (_, i) => c('square', 10 + (i % 2)))
+    for (const num of [1, 2, 8, 14]) {
+      const g = dealGame(
+        [...filler, c('circle', num), ...dealt],
+        'you',
+        'Easy',
+        rng,
+        ALL_OFF,
+      )
+      expect(g.turn, `starter ${num}`).toBe('you')
+      expect(g.hand, `starter ${num}`).toHaveLength(4)
+      expect(g.msg, `starter ${num}`).toBe('You go first.')
+    }
+  })
+
+  it('WHOT is always active, whatever the ruleset', () => {
+    const whot = c('whot', 20)
+    const n = playCard(
+      withRules(ALL_OFF, { hand: [whot, c('square', 9)] }),
+      'you',
+      whot.id,
+      'Easy',
+      rng,
+    )
+    expect(n.picking).toBe(true)
+    expect(legendEntries(ALL_OFF)).toEqual([{ n: 20, name: 'WHOT' }])
+  })
+})
+
+describe('play log', () => {
+  const rng = () => 0.5
+  const filler = Array.from({ length: 36 }, (_, i) => c('star', (i % 3) + 1))
+  const dealt = Array.from({ length: 8 }, (_, i) => c('square', 10 + (i % 2)))
+  const deal = (
+    starter: Card,
+    first: 'you' | 'cpu',
+    rules: Rules = DEFAULT_RULES,
+  ) => dealGame([...filler, starter, ...dealt], first, 'Easy', rng, rules)
+  const texts = (s: WhotState) => s.log.map((e) => e.text)
+
+  it('entries are numbered from 1, in order', () => {
+    const g = deal(c('circle', 3), 'you')
+    expect(g.log.map((e) => e.n)).toEqual([1, 2])
+  })
+
+  describe('deal', () => {
+    it('logs the deal (with the starter card) and who goes first', () => {
+      const starter = c('circle', 3)
+      const g = deal(starter, 'you')
+      expect(g.log[0]).toMatchObject({
+        n: 1,
+        who: 'sys',
+        text: 'Dealt 4 cards each. Starter card: Circle 3.',
+        card: starter,
+      })
+      expect(g.log[1]).toMatchObject({
+        n: 2,
+        who: 'sys',
+        text: 'You go first (random).',
+      })
+      expect(deal(starter, 'cpu').log[1].text).toBe('CPU goes first (random).')
+    })
+
+    it.each([1, 8])('starter %i: the first player is skipped', (n) => {
+      const name = n === 1 ? 'Hold on' : 'Suspension'
+      const you = deal(c('circle', n), 'you')
+      expect(you.log[2]).toMatchObject({
+        n: 3,
+        who: 'you',
+        text: `Skipped (starter ${name}).`,
+      })
+      expect(deal(c('circle', n), 'cpu').log[2]).toMatchObject({
+        who: 'cpu',
+        text: `Skipped (starter ${name}).`,
+      })
+    })
+
+    it.each([
+      [2, 'Pick two'],
+      [14, 'General market'],
+    ])(
+      'starter %i: the first player draws, logged with the starter reason',
+      (n, name) => {
+        const g = deal(c('circle', n), 'you')
+        expect(g.log[2]).toMatchObject({
+          who: 'you',
+          text: `Drew ${n === 2 ? 2 : 1} (starter ${name}).`,
+        })
+        expect(g.log[2].drawn).toHaveLength(n === 2 ? 2 : 1)
+        expect(deal(c('circle', n), 'cpu').log[2].who).toBe('cpu')
+      },
+    )
+
+    it('starter WHOT with the CPU first: the CPU asks for a shape', () => {
+      const g = dealGame(
+        [...filler, c('whot', 20), ...dealt],
+        'cpu',
+        'Easy',
+        () => 0,
+      )
+      expect(g.log[2]).toMatchObject({
+        who: 'cpu',
+        text: 'Asked for Circle (starter WHOT).',
+      })
+    })
+
+    it('starter WHOT with you first logs nothing until you call', () => {
+      const g = deal(c('whot', 20), 'you')
+      expect(g.log).toHaveLength(2)
+      const called = callShape(g, 'square')
+      expect(called.log[2]).toMatchObject({
+        n: 3,
+        who: 'you',
+        text: 'Asked for Square.',
+      })
+    })
+  })
+
+  describe('plays', () => {
+    it('a normal play names the card and what it was played on', () => {
+      const card = c('circle', 7)
+      const s = state({ pile: [c('circle', 3)], hand: [card, c('square', 9)] })
+      const n = playCard(s, 'you', card.id, 'Easy', rng)
+      expect(n.log).toHaveLength(1)
+      expect(n.log[0]).toMatchObject({
+        n: 1,
+        who: 'you',
+        text: 'Played Circle 7 on Circle 3.',
+        card,
+      })
+    })
+
+    it('adds "(asked X)" when the play answers a WHOT request', () => {
+      const card = c('square', 7)
+      const s = state({
+        pile: [c('whot', 20)],
+        req: 'square',
+        hand: [card, c('star', 9)],
+      })
+      expect(playCard(s, 'you', card.id, 'Easy', rng).log[0].text).toBe(
+        'Played Square 7 on WHOT (asked Square).',
+      )
+    })
+
+    it('a special play adds "Plays again (name)"', () => {
+      const card = c('circle', 8)
+      const s = state({ hand: [card, c('square', 9)] })
+      expect(playCard(s, 'you', card.id, 'Easy', rng).log[0].text).toBe(
+        'Played Circle 8 on Circle 3. Plays again (Suspension).',
+      )
+    })
+
+    it('a penalty draw is its own entry, added after the play, credited to the opponent', () => {
+      const card = c('circle', 2)
+      const s = state({ hand: [card, c('square', 9)] })
+      const n = playCard(s, 'you', card.id, 'Easy', rng)
+      expect(n.log).toHaveLength(2)
+      expect(n.log[0]).toMatchObject({
+        who: 'you',
+        text: 'Played Circle 2 on Circle 3. Plays again (Pick two).',
+      })
+      expect(n.log[1]).toMatchObject({
+        n: 2,
+        who: 'cpu',
+        text: 'Drew 2 (Pick two).',
+      })
+      expect(n.log[1].drawn).toHaveLength(2)
+      expect(n.log[1].card).toBeUndefined()
+    })
+
+    it('a disabled special logs as a plain play (no "Plays again")', () => {
+      const five = c('circle', 5)
+      const n = playCard(
+        state({ hand: [five, c('square', 9)] }),
+        'you',
+        five.id,
+        'Easy',
+        rng,
+      )
+      expect(n.log).toHaveLength(1)
+      expect(n.log[0].text).toBe('Played Circle 5 on Circle 3.')
+    })
+
+    it('you playing WHOT logs "Calling a shape…" and then your call as a second entry', () => {
+      const whot = c('whot', 20)
+      const s = state({ pile: [c('star', 5)], hand: [whot, c('square', 9)] })
+      const played = playCard(s, 'you', whot.id, 'Easy', rng)
+      expect(played.log).toHaveLength(1)
+      expect(played.log[0]).toMatchObject({
+        who: 'you',
+        text: 'Played WHOT on Star 5. Calling a shape…',
+        card: whot,
+      })
+      const called = callShape(played, 'triangle')
+      expect(called.log).toHaveLength(2)
+      expect(called.log[1]).toMatchObject({
+        n: 2,
+        who: 'you',
+        text: 'Asked for Triangle.',
+      })
+    })
+
+    it('the CPU playing WHOT is a single entry that includes its ask', () => {
+      const whot = c('whot', 20)
+      const s = state({
+        pile: [c('star', 5)],
+        turn: 'cpu',
+        cpu: [whot, c('triangle', 4), c('triangle', 9)],
+      })
+      const n = playCard(s, 'cpu', whot.id, 'Hard', rng)
+      expect(n.log).toHaveLength(1)
+      expect(n.log[0]).toMatchObject({
+        who: 'cpu',
+        text: 'Played WHOT on Star 5. Asks for Triangle.',
+        card: whot,
+      })
+    })
+
+    it('the last card adds "Last card." and then a table entry for the result', () => {
+      const card = c('circle', 7)
+      const n = playCard(state({ hand: [card] }), 'you', card.id, 'Easy', rng)
+      expect(n.log).toHaveLength(2)
+      expect(n.log[0]).toMatchObject({
+        who: 'you',
+        text: 'Played Circle 7 on Circle 3. Last card.',
+        card,
+      })
+      expect(n.log[1]).toMatchObject({
+        who: 'sys',
+        text: 'You win: hand empty.',
+      })
+      const cpuCard = c('circle', 7)
+      const lost = playCard(
+        state({ turn: 'cpu', cpu: [cpuCard] }),
+        'cpu',
+        cpuCard.id,
+        'Easy',
+        rng,
+      )
+      expect(lost.log[1].text).toBe('CPU wins: hand empty.')
+    })
+
+    it('a last card that is a special does not log its effect', () => {
+      const two = c('circle', 2)
+      const n = playCard(state({ hand: [two] }), 'you', two.id, 'Easy', rng)
+      expect(texts(n)).toEqual([
+        'Played Circle 2 on Circle 3. Last card.',
+        'You win: hand empty.',
+      ])
+    })
+  })
+
+  describe('draws', () => {
+    it('a market draw is "Drew 1 from the market."', () => {
+      const n = drawFromMarket(state(), 'you')
+      expect(n.log).toHaveLength(1)
+      expect(n.log[0]).toMatchObject({
+        who: 'you',
+        text: 'Drew 1 from the market.',
+      })
+      expect(n.log[0].drawn).toHaveLength(1)
+      expect(drawFromMarket(state({ turn: 'cpu' }), 'cpu').log[0].who).toBe(
+        'cpu',
+      )
+    })
+
+    it('records the exact cards drawn', () => {
+      const s = state()
+      const top = s.deck[s.deck.length - 1]
+      expect(drawFromMarket(s, 'you').log[0].drawn).toEqual([top])
+    })
+  })
+
+  describe('market empty', () => {
+    it('adds a table entry with the totals and the result, after the draw', () => {
+      const s = state({
+        deck: [c('star', 2)],
+        hand: [c('circle', 7)],
+        cpu: [c('triangle', 4), c('star', 8)],
+      })
+      const n = drawFromMarket(s, 'you')
+      expect(n.log).toHaveLength(2)
+      expect(n.log[0].text).toBe('Drew 1 from the market.')
+      expect(n.log[1]).toMatchObject({
+        who: 'sys',
+        text: 'Market empty. Totals: You 9, CPU 12. You win.',
+      })
+    })
+    it.each([
+      [[c('circle', 9)], [c('circle', 1)], 'CPU wins.'],
+      // you draw a 3 into your 4, so 7 v 7 is the draw
+      [[c('circle', 4)], [c('circle', 7)], 'Draw.'],
+    ])('names the verdict (%#)', (hand, cpu, verdict) => {
+      const n = drawFromMarket(
+        state({ deck: [c('star', 3)], hand, cpu }),
+        'you',
+      )
+      expect(n.log[1].text.endsWith(verdict)).toBe(true)
+    })
+    it('a penalty that empties the market logs the play, the (short) draw, then the market entry', () => {
+      const two = c('circle', 2)
+      const s = state({
+        deck: [c('star', 1)],
+        hand: [two, c('square', 9)],
+        cpu: [c('triangle', 1)],
+      })
+      const n = playCard(s, 'you', two.id, 'Easy', rng)
+      expect(n.log.map((e) => e.who)).toEqual(['you', 'cpu', 'sys'])
+      expect(n.log[1].text).toBe('Drew 1 (Pick two).')
+      expect(n.log[2].text).toMatch(/^Market empty\./)
+    })
+  })
+
+  it('acceptance: a CPU chain of 8 → 14 → 2 → 7 is exactly 6 entries (4 plays + 2 penalty draws for you)', () => {
+    const [eight, fourteen, two, seven] = [
+      c('circle', 8),
+      c('circle', 14),
+      c('circle', 2),
+      c('circle', 7),
+    ]
+    let s = state({
+      turn: 'cpu',
+      pile: [c('circle', 3)],
+      cpu: [eight, fourteen, two, seven, c('star', 9)],
+    })
+    for (const card of [eight, fourteen, two, seven])
+      s = playCard(s, 'cpu', card.id, 'Easy', rng)
+    expect(s.log).toHaveLength(6)
+    expect(s.log.map((e) => e.who)).toEqual([
+      'cpu',
+      'cpu',
+      'you',
+      'cpu',
+      'you',
+      'cpu',
+    ])
+    expect(s.log.map((e) => e.n)).toEqual([1, 2, 3, 4, 5, 6])
+    expect(texts(s)).toEqual([
+      'Played Circle 8 on Circle 3. Plays again (Suspension).',
+      'Played Circle 14 on Circle 8. Plays again (General market).',
+      'Drew 1 (General market).',
+      'Played Circle 2 on Circle 14. Plays again (Pick two).',
+      'Drew 2 (Pick two).',
+      'Played Circle 7 on Circle 2.',
+    ])
+  })
+
+  it('every play entry carries its card, so legality can be checked from the log alone', () => {
+    const [a, b] = [c('circle', 7), c('circle', 9)]
+    let s = state({
+      hand: [a, c('square', 9)],
+      cpu: [b, c('star', 8)],
+      pile: [c('circle', 3)],
+    })
+    s = playCard(s, 'you', a.id, 'Easy', rng)
+    s = playCard(s, 'cpu', b.id, 'Easy', rng)
+    const plays = s.log.filter((e) => e.text.startsWith('Played'))
+    expect(plays.map((e) => e.card?.id)).toEqual([a.id, b.id])
+    expect(plays[1].text).toBe('Played Circle 9 on Circle 7.')
+  })
+
+  it('invalid actions add nothing to the log', () => {
+    const s = state()
+    const bad = s.hand.find((x) => x.s === 'cross')!
+    expect(playCard(s, 'you', bad.id, 'Easy', rng).log).toBe(s.log)
+    expect(drawFromMarket({ ...s, turn: 'cpu' }, 'you').log).toBe(s.log)
+    expect(callShape(s, 'star').log).toBe(s.log)
+  })
+
+  it('a full CPU-vs-CPU style game keeps the log gap-free and ordered', () => {
+    let s = newGame(Math.random, 'Hard')
+    for (let i = 0; i < 400 && !s.over && !s.picking; i++) {
+      if (s.turn === 'cpu') s = cpuMove(s, 'Hard', Math.random)
+      else {
+        const legal = s.hand.filter((x) => canPlay(x, s))
+        s = legal.length
+          ? playCard(s, 'you', legal[0].id, 'Hard', Math.random)
+          : drawFromMarket(s, 'you')
+      }
+      if (s.picking) s = callShape(s, 'circle')
+    }
+    expect(s.log.map((e) => e.n)).toEqual(s.log.map((_, i) => i + 1))
+    expect(s.log.length).toBeGreaterThan(2)
   })
 })

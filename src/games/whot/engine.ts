@@ -3,6 +3,9 @@
  * injected `rng`, no React. House rules are defined in project_doc/README.md → "Whot".
  */
 
+import { DEFAULT_RULES, specialEffect } from './rules'
+import type { Rules } from './rules'
+
 export const SHAPES = ['circle', 'triangle', 'cross', 'square', 'star'] as const
 export type Shape = (typeof SHAPES)[number]
 export type CardShape = Shape | 'whot'
@@ -25,6 +28,22 @@ export type Outcome = {
   cpuTotal?: number
 }
 
+/**
+ * One entry per action, never merged. The engine appends them so the UI never builds log text itself.
+ * `drawn` is always recorded; hiding the CPU's drawn cards until game over is a display concern (see log.ts).
+ */
+export type LogEntry = {
+  /** 1-based, in order */
+  readonly n: number
+  /** 'sys' = table events */
+  readonly who: Who | 'sys'
+  readonly text: string
+  /** the card played (or the starter card) */
+  readonly card?: Card
+  /** cards drawn by this action */
+  readonly drawn?: ReadonlyArray<Card>
+}
+
 export type WhotState = {
   /** top of the market is the last element */
   readonly deck: ReadonlyArray<Card>
@@ -40,6 +59,10 @@ export type WhotState = {
   readonly picking: boolean
   readonly over: Outcome | null
   readonly msg: string
+  /** Every action so far, oldest first. */
+  readonly log: ReadonlyArray<LogEntry>
+  /** Fixed for the whole game, so changing settings never alters a game in progress. */
+  readonly rules: Rules
 }
 
 const NUMBERS: Record<Shape, ReadonlyArray<number>> = {
@@ -60,28 +83,6 @@ export const SHAPE_NAME: Record<CardShape, string> = {
   square: 'Square',
   star: 'Star',
   whot: 'WHOT',
-}
-
-export const SPECIAL_NAME: Readonly<Record<number, string>> = {
-  1: 'Hold on',
-  2: 'Pick two',
-  5: 'Pick three',
-  8: 'Suspension',
-  14: 'General market',
-  20: 'WHOT',
-}
-
-/** How many cards the opponent draws for each penalty card. */
-const PENALTY: Readonly<Record<number, number>> = { 2: 2, 5: 3, 14: 1 }
-/** Cards that give the same player another turn. */
-const PLAY_AGAIN = new Set([1, 2, 5, 8, 14])
-/** Cards the hard CPU treats as specials. */
-const HARD_SPECIAL_BONUS: Readonly<Record<number, number>> = {
-  1: 0,
-  8: 0,
-  14: 4,
-  2: 6,
-  5: 8,
 }
 
 const SHAPE_ORDER: Record<CardShape, number> = {
@@ -151,6 +152,17 @@ function setHand(
 const handOf = (state: WhotState, who: Who) =>
   who === 'you' ? state.hand : state.cpu
 
+function addLog(
+  state: WhotState,
+  who: LogEntry['who'],
+  text: string,
+  card?: Card,
+  drawn?: ReadonlyArray<Card>,
+): WhotState {
+  const entry: LogEntry = { n: state.log.length + 1, who, text, card, drawn }
+  return { ...state, log: [...state.log, entry] }
+}
+
 /** The game ends the moment the market is empty: lowest hand total wins. */
 function settleByCount(state: WhotState): WhotState {
   if (state.over) return state
@@ -158,17 +170,36 @@ function settleByCount(state: WhotState): WhotState {
   const cpuTotal = handTotal(state.cpu)
   const result: Result =
     yourTotal < cpuTotal ? 'win' : yourTotal > cpuTotal ? 'loss' : 'draw'
-  return { ...state, over: { result, reason: 'count', yourTotal, cpuTotal } }
+  const verdict =
+    result === 'win' ? 'You win.' : result === 'loss' ? 'CPU wins.' : 'Draw.'
+  return addLog(
+    { ...state, over: { result, reason: 'count', yourTotal, cpuTotal } },
+    'sys',
+    `Market empty. Totals: You ${yourTotal}, CPU ${cpuTotal}. ${verdict}`,
+  )
 }
 
-function drawCards(state: WhotState, who: Who, k: number): WhotState {
+/**
+ * `reason` names why the cards were drawn, for the log: 'Pick two', 'starter Pick two'.
+ * Without one it is an ordinary market draw.
+ */
+function drawCards(
+  state: WhotState,
+  who: Who,
+  k: number,
+  reason?: string,
+): WhotState {
   const take = Math.min(k, state.deck.length)
   const drawn = state.deck.slice(state.deck.length - take).toReversed()
-  const next = setHand(
+  let next = setHand(
     { ...state, deck: state.deck.slice(0, state.deck.length - take) },
     who,
     [...handOf(state, who), ...drawn],
   )
+  if (drawn.length > 0) {
+    const why = reason ? ` (${reason})` : ' from the market'
+    next = addLog(next, who, `Drew ${drawn.length}${why}.`, undefined, drawn)
+  }
   return next.deck.length === 0 ? settleByCount(next) : next
 }
 
@@ -194,10 +225,14 @@ export function pickCpuShape(
   return best ?? random()
 }
 
-export function newGame(rng: Rng, level: Level): WhotState {
+export function newGame(
+  rng: Rng,
+  level: Level,
+  rules: Rules = DEFAULT_RULES,
+): WhotState {
   const deck = shuffle(createDeck(), rng)
   const first: Who = rng() < 0.5 ? 'you' : 'cpu'
-  return dealGame(deck, first, level, rng)
+  return dealGame(deck, first, level, rng, rules)
 }
 
 /** Deal from an already-ordered market (top = last): 4 each, flip one, apply a special starter. */
@@ -206,6 +241,7 @@ export function dealGame(
   first: Who,
   level: Level,
   rng: Rng,
+  rules: Rules = DEFAULT_RULES,
 ): WhotState {
   const deck = market.slice()
   const hand: Array<Card> = []
@@ -227,25 +263,49 @@ export function dealGame(
     picking: false,
     over: null,
     msg: '',
+    log: [],
+    rules,
   }
+  state = addLog(
+    state,
+    'sys',
+    `Dealt ${HAND_SIZE} cards each. Starter card: ${cardName(top)}.`,
+    top,
+  )
+  state = addLog(
+    state,
+    'sys',
+    `${first === 'you' ? 'You go' : 'CPU goes'} first (random).`,
+  )
   let msg = first === 'you' ? 'You go first.' : 'CPU goes first.'
   const n = top.n
-  const special = SPECIAL_NAME[n] as string | undefined
+  const fx = specialEffect(rules, n)
 
-  if (n === 1 || n === 8) {
-    state = { ...state, turn: second }
-    msg += ` Starter is ${special}, so ${first === 'you' ? 'you are' : 'CPU is'} skipped.`
-  } else if (n in PENALTY) {
-    const k = PENALTY[n]
-    state = { ...drawCards(state, first, k), turn: second }
-    msg += ` Starter is ${special}: ${drawText(first, k)}`
+  if (fx && fx.draw > 0) {
+    state = {
+      ...drawCards(state, first, fx.draw, `starter ${fx.name}`),
+      turn: second,
+    }
+    msg += ` Starter is ${fx.name}: ${drawText(first, fx.draw)}`
+  } else if (fx) {
+    // A starter with no draw effect skips the first player.
+    state = addLog(
+      { ...state, turn: second },
+      first,
+      `Skipped (starter ${fx.name}).`,
+    )
+    msg += ` Starter is ${fx.name}, so ${first === 'you' ? 'you are' : 'CPU is'} skipped.`
   } else if (n === WHOT_NUMBER) {
     if (first === 'you') {
       state = { ...state, picking: true }
       msg += ' Starter is WHOT. Call a shape, then play.'
     } else {
       const req = pickCpuShape(state.cpu, level, rng)
-      state = { ...state, req }
+      state = addLog(
+        { ...state, req },
+        'cpu',
+        `Asked for ${SHAPE_NAME[req]} (starter WHOT).`,
+      )
       msg += ` Starter is WHOT. CPU asks for ${SHAPE_NAME[req]}.`
     }
   }
@@ -267,6 +327,10 @@ export function playCard(
   const rest = from.filter((c) => c.id !== cardId)
   const opp = other(who)
   const name = who === 'you' ? 'You' : 'CPU'
+  const onTop = state.pile[state.pile.length - 1]
+  // What the log says: the card, what it was played on, and any request it answered.
+  const asked = state.req ? ` (asked ${SHAPE_NAME[state.req]})` : ''
+  const played = `Played ${cardName(card)} on ${cardName(onTop)}${asked}.`
   let next: WhotState = {
     ...setHand(state, who, rest),
     pile: [...state.pile, card],
@@ -276,6 +340,12 @@ export function playCard(
 
   // Emptying your hand wins on the spot; the card's effect is not applied.
   if (rest.length === 0) {
+    next = addLog(next, who, `${played} Last card.`, card)
+    next = addLog(
+      next,
+      'sys',
+      `${who === 'you' ? 'You win' : 'CPU wins'}: hand empty.`,
+    )
     return {
       ...next,
       over: { result: who === 'you' ? 'win' : 'loss', reason: 'out' },
@@ -286,33 +356,45 @@ export function playCard(
   if (card.n === WHOT_NUMBER) {
     if (who === 'you')
       return {
-        ...next,
+        ...addLog(next, who, `${played} Calling a shape…`, card),
         picking: true,
         turn: 'cpu',
         msg: 'You played WHOT. Call a shape.',
       }
     const req = pickCpuShape(rest, level, rng)
     return {
-      ...next,
+      ...addLog(next, who, `${played} Asks for ${SHAPE_NAME[req]}.`, card),
       req,
       turn: 'you',
       msg: `CPU played WHOT and asks for ${SHAPE_NAME[req]}.`,
     }
   }
 
-  const again = who === 'you' ? 'play again.' : 'CPU plays again.'
-  const special = SPECIAL_NAME[card.n]
-  if (card.n in PENALTY) {
-    const k = PENALTY[card.n]
-    next = { ...drawCards(next, opp, k), turn: who }
-    const tail = next.over
-      ? ''
-      : ` ${who === 'you' ? 'Play again.' : 'CPU plays again.'}`
-    return { ...next, msg: `${base} ${special}: ${drawText(opp, k)}${tail}` }
+  const fx = specialEffect(state.rules, card.n)
+  if (!fx) return { ...addLog(next, who, played, card), turn: opp, msg: base }
+
+  // The play entry comes first, then the opponent's penalty draw as its own entry.
+  next = addLog(
+    next,
+    who,
+    fx.playAgain ? `${played} Plays again (${fx.name}).` : played,
+    card,
+  )
+  if (fx.draw > 0) next = drawCards(next, opp, fx.draw, fx.name)
+  const again = who === 'you' ? 'Play again.' : 'CPU plays again.'
+  const detail =
+    fx.draw > 0
+      ? `${drawText(opp, fx.draw)}${fx.playAgain && !next.over ? ` ${again}` : ''}`
+      : fx.playAgain
+        ? who === 'you'
+          ? 'play again.'
+          : again
+        : ''
+  return {
+    ...next,
+    turn: fx.playAgain ? who : opp,
+    msg: detail ? `${base} ${fx.name}: ${detail}` : `${base} ${fx.name}.`,
   }
-  if (PLAY_AGAIN.has(card.n))
-    return { ...next, turn: who, msg: `${base} ${special}: ${again}` }
-  return { ...next, turn: opp, msg: base }
 }
 
 export function drawFromMarket(state: WhotState, who: Who): WhotState {
@@ -330,24 +412,23 @@ export function callShape(state: WhotState, shape: Shape): WhotState {
   if (!state.picking || state.over) return state
   const yourMove = state.turn === 'you'
   return {
-    ...state,
+    ...addLog(state, 'you', `Asked for ${SHAPE_NAME[shape]}.`),
     req: shape,
     picking: false,
     msg: `You asked for ${SHAPE_NAME[shape]}.${yourMove ? ' Your move.' : ''}`,
   }
 }
 
-function scoreHard(
-  card: Card,
-  cpuHand: ReadonlyArray<Card>,
-  playerHandSize: number,
-  legalCount: number,
-): number {
+function scoreHard(card: Card, state: WhotState, legalCount: number): number {
   if (card.s === 'whot') return legalCount === 1 ? 0 : -40
-  const sameShape = cpuHand.reduce((k, c) => k + (c.s === card.s ? 1 : 0), 0)
+  const sameShape = state.cpu.reduce((k, c) => k + (c.s === card.s ? 1 : 0), 0)
   let score = 3 * sameShape + 0.4 * card.n
-  if (card.n in HARD_SPECIAL_BONUS) score += 30 + HARD_SPECIAL_BONUS[card.n]
-  if (playerHandSize <= 2 && (card.n === 2 || card.n === 5)) score += 20
+  const fx = specialEffect(state.rules, card.n)
+  if (fx) {
+    score += 30 + fx.cpuBonus
+    // A draw penalty of 2+ is worth saving for when the player is close to winning.
+    if (state.hand.length <= 2 && fx.draw >= 2) score += 20
+  }
   return score
 }
 
@@ -361,7 +442,7 @@ export function pickCpuCard(
   let best = legal[0]
   let bestScore = -Infinity
   for (const card of legal) {
-    const score = scoreHard(card, state.cpu, state.hand.length, legal.length)
+    const score = scoreHard(card, state, legal.length)
     if (score > bestScore) {
       best = card
       bestScore = score

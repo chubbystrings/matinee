@@ -7,7 +7,6 @@ import { useWhotLevel, useWhotStats } from '#/store/whot'
 import {
   SHAPES,
   SHAPE_NAME,
-  SPECIAL_NAME,
   callShape,
   canPlay,
   cardName,
@@ -18,12 +17,13 @@ import {
   sortHand,
 } from './engine'
 import type { Card, Level, Shape, WhotState } from './engine'
+import { PLAY_LOG_ID, PlayLog } from './PlayLog'
+import { DEFAULT_RULES, legendEntries } from './rules'
 import { CARD_BACK_BG, MARKET_BACK_BG, SHAPE_COLOR } from './shapes'
 import { CardFace, ShapeMark } from './WhotCard'
 
 const CPU_DELAY_MS = 800
 const LEVELS: ReadonlyArray<Level> = ['Easy', 'Hard']
-const LEGEND = [1, 2, 5, 8, 14, 20].map((n) => ({ n, name: SPECIAL_NAME[n] }))
 
 const MONO_LABEL = 'font-mono text-[11px] uppercase tracking-[.12em]'
 const BACK_STYLE = { background: CARD_BACK_BG }
@@ -174,8 +174,13 @@ function WhotBoard({ onAgain }: { onAgain: () => void }) {
   const record = useWhotStats((s) => s.record)
   const streak = useWhotStats((s) => s.streak)
   const bestStreak = useWhotStats((s) => s.best)
-  const [game, setGame] = useState(() => newGame(Math.random, level))
+  // Rules are fixed per game. A future rules setting passes its stored `Rules` here instead of the defaults.
+  const [game, setGame] = useState(() =>
+    newGame(Math.random, level, DEFAULT_RULES),
+  )
   const visible = usePageVisible()
+  // Resets with the board: Play again and restart both remount it.
+  const [logOpen, setLogOpen] = useState(false)
 
   // Every transition goes through here so the result is recorded exactly once, from a handler or timer.
   const commit = (next: WhotState) => {
@@ -286,21 +291,32 @@ function WhotBoard({ onAgain }: { onAgain: () => void }) {
         />
       </div>
 
-      <div
-        className="flex min-h-[84px] flex-col items-center gap-1.5 text-center sm:min-h-[50px]"
-        aria-live="polite"
-      >
+      <div className="flex min-h-[84px] flex-col items-center gap-1.5 text-center sm:min-h-[50px]">
         <div
           data-testid="whot-status"
+          aria-live="polite"
           className={`font-display text-[clamp(16px,2.4vw,20px)] font-semibold tracking-[.02em] uppercase ${statusLime ? 'text-link' : 'text-text-2'}`}
         >
           {statusText(game, myTurn, noMove)}
         </div>
-        <div
-          data-testid="whot-msg"
-          className="max-w-[46ch] text-sm leading-[1.45] text-muted [text-wrap:pretty]"
-        >
-          {game.msg}
+        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
+          <div
+            data-testid="whot-msg"
+            aria-live="polite"
+            className="max-w-[46ch] text-sm leading-[1.45] text-muted [text-wrap:pretty]"
+          >
+            {game.msg}
+          </div>
+          <button
+            type="button"
+            data-testid="whot-log-pill"
+            aria-expanded={logOpen}
+            aria-controls={PLAY_LOG_ID}
+            onClick={() => setLogOpen((open) => !open)}
+            className="h-[30px] flex-none cursor-pointer rounded-pill border border-ink-500 px-3 font-mono text-[11px] tracking-[.1em] text-paper uppercase hover:border-paper"
+          >
+            Log · {game.log.length}
+          </button>
         </div>
       </div>
 
@@ -340,7 +356,7 @@ function WhotBoard({ onAgain }: { onAgain: () => void }) {
 
       <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2.5">
         <ul className="flex flex-wrap justify-center gap-1.5">
-          {LEGEND.map((l) => (
+          {legendEntries(game.rules).map((l) => (
             <li
               key={l.n}
               className="flex h-7 items-center gap-1.5 rounded-pill border border-ink-600 px-2.5 font-mono text-[11px] tracking-[.06em] text-text-2 uppercase"
@@ -370,6 +386,13 @@ function WhotBoard({ onAgain }: { onAgain: () => void }) {
           ))}
         </div>
       </div>
+      {logOpen ? (
+        <PlayLog
+          log={game.log}
+          gameOver={game.over !== null}
+          onClose={() => setLogOpen(false)}
+        />
+      ) : null}
     </div>
   )
 }

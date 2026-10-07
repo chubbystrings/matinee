@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 
 /** Deterministic Math.random (mulberry32) so the deal is reproducible. */
 // Seed 2: the player moves first and the starter is a plain card, so no timer exists before the fake clock is installed.
@@ -45,7 +45,6 @@ test('renders the table: CPU hand, market, pile, status, legend and stats', asyn
   for (const t of [
     'Hold on',
     'Pick two',
-    'Pick three',
     'Suspension',
     'General market',
     'WHOT',
@@ -54,6 +53,9 @@ test('renders the table: CPU hand, market, pile, status, legend and stats', asyn
       page.getByRole('listitem').filter({ hasText: t }),
     ).toBeVisible()
   }
+  // 5 is a plain card now: no legend entry for it.
+  await expect(page.getByText('Pick three')).toHaveCount(0)
+  await expect(page.getByRole('listitem')).toHaveCount(5)
   // 54 cards: hand + CPU + market + the one flipped starter (a penalty starter only moves cards between hands and market).
   const hand = await page.getByTestId('whot-card').count()
   expect(
@@ -251,4 +253,200 @@ test('play view stat pills read from the stored wins and streak', async ({
   await page.waitForLoadState('networkidle')
   await expect(page.getByText('5', { exact: true }).first()).toBeVisible()
   await expect(page.getByText('2', { exact: true }).first()).toBeVisible()
+})
+
+// ---- Play log (UPDATE-01) ----
+const pill = (page: Page) => page.getByTestId('whot-log-pill')
+const panel = (page: Page) =>
+  page.getByRole('complementary', { name: 'Play log' })
+const rows = (page: Page) => page.getByTestId('whot-log-row')
+/** The phone sheet legitimately covers the hand and the pill, so tests drive those controls via DOM clicks. */
+const tap = (target: Locator) => target.dispatchEvent('click')
+const logCount = async (page: Page) =>
+  Number(((await pill(page).textContent()) ?? '').match(/(\d+)/)?.[1])
+
+test.describe('play log', () => {
+  test('the pill counts entries and toggles the panel; × closes it', async ({
+    page,
+  }) => {
+    await seed(page)
+    await open(page)
+    await expect(pill(page)).toHaveText('Log · 2')
+    await expect(pill(page)).toHaveAttribute('aria-expanded', 'false')
+    await expect(panel(page)).toHaveCount(0)
+
+    await pill(page).click()
+    await expect(panel(page)).toBeVisible()
+    await expect(pill(page)).toHaveAttribute('aria-expanded', 'true')
+    await expect(panel(page).getByText('Play log')).toBeVisible()
+    await expect(
+      panel(page).getByText('Newest first · CPU draws hidden until the end'),
+    ).toBeVisible()
+
+    await page.getByRole('button', { name: 'Close log' }).click()
+    await expect(panel(page)).toHaveCount(0)
+    await pill(page).click()
+    await expect(panel(page)).toBeVisible()
+    await tap(pill(page))
+    await expect(panel(page)).toHaveCount(0)
+  })
+
+  test('lists entries newest first, numbered, with the starter card on the deal row', async ({
+    page,
+  }) => {
+    await seed(page)
+    await open(page)
+    await pill(page).click()
+    await expect(rows(page)).toHaveCount(2)
+    await expect(rows(page).first()).toContainText('2')
+    await expect(rows(page).first()).toContainText('Table')
+    await expect(rows(page).first()).toContainText('You go first (random).')
+    const deal = rows(page).last()
+    await expect(deal).toContainText('1')
+    await expect(deal).toContainText(
+      /Dealt 4 cards each\. Starter card: [A-Za-z]+ \d+\./,
+    )
+    // the deal row carries a mini card; the "first player" row keeps the column empty
+    expect(
+      await deal
+        .locator('[class*="aspect-[5/7]"]')
+        .evaluate((el) => getComputedStyle(el).backgroundColor),
+    ).not.toBe('rgba(0, 0, 0, 0)')
+    expect(
+      await rows(page)
+        .first()
+        .locator('[class*="aspect-[5/7]"]')
+        .evaluate((el) => getComputedStyle(el).backgroundColor),
+    ).toBe('rgba(0, 0, 0, 0)')
+  })
+
+  test('new rows appear live at the top and the game does not pause (CPU still moves at 800 ms)', async ({
+    page,
+  }) => {
+    await seed(page)
+    await open(page)
+    await pill(page).click()
+    await expect(
+      page.getByRole('button', { name: 'Draw from market' }),
+    ).toBeEnabled()
+    await page.getByRole('button', { name: 'Draw from market' }).click()
+
+    // your draw is the newest row, and your own drawn card is named
+    await expect(rows(page).first()).toContainText('You')
+    await expect(rows(page).first()).toContainText(
+      /^3.*Drew 1 from the market\. [A-Za-z]+ \d+\.|WHOT\./,
+    )
+    expect(await logCount(page)).toBe(3)
+
+    await page.clock.runFor(700)
+    expect(await logCount(page)).toBe(3) // not yet
+    await page.clock.runFor(150)
+    await expect.poll(() => logCount(page)).toBeGreaterThan(3) // the CPU moved while the log was open
+    await expect(rows(page).first()).toContainText('CPU')
+    await expect(panel(page)).toBeVisible() // and the panel stayed open
+  })
+
+  test('every play row names the card it was played on', async ({ page }) => {
+    test.setTimeout(120_000)
+    await seed(page)
+    await open(page)
+    await playToTheEnd(page)
+    await pill(page).click()
+    const plays = (await rows(page).allInnerTexts()).filter((t) =>
+      /Played /.test(t),
+    )
+    expect(plays.length).toBeGreaterThan(0)
+    for (const t of plays)
+      expect(t).toMatch(/Played (WHOT|[A-Za-z]+ \d+) on (WHOT|[A-Za-z]+ \d+)/)
+  })
+
+  test('CPU draws stay hidden during the game and are revealed after game over', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000)
+    await seed(page)
+    await open(page)
+    await pill(page).click()
+
+    const cpuDraws = async () =>
+      (await rows(page).allInnerTexts()).filter(
+        (t) => /CPU\s/.test(t) && /Drew \d/.test(t),
+      )
+    const HIDDEN = /Drew \d+ (from the market|\([^)]+\))\.\s*$/
+    const again = page.getByRole('button', { name: 'Play again' })
+
+    let sawHiddenDraw = false
+    for (let step = 0; step < 600 && !(await again.isVisible()); step++) {
+      const picker = page.getByRole('button', { name: 'Circle', exact: true })
+      if (await picker.isVisible()) await tap(picker)
+      else if (
+        /Your turn|No match/.test((await status(page).textContent()) ?? '')
+      ) {
+        const card = page
+          .locator('[data-testid=whot-card][data-playable=true]')
+          .first()
+        if (await card.count()) await tap(card)
+        else
+          await page.getByRole('button', { name: 'Draw from market' }).click()
+      }
+      await page.clock.runFor(800)
+      if (!(await again.isVisible())) {
+        for (const t of await cpuDraws()) {
+          sawHiddenDraw = true
+          expect(t, 'CPU draw must not name cards mid-game').toMatch(HIDDEN)
+        }
+      }
+    }
+    await expect(again).toBeVisible()
+    expect(sawHiddenDraw).toBe(true)
+
+    // after game over the same rows name the cards
+    const after = await cpuDraws()
+    expect(after.length).toBeGreaterThan(0)
+    for (const t of after)
+      expect(t).toMatch(/Drew \d+ [^\n]*\.\s+(WHOT|[A-Za-z]+ \d+)/)
+  })
+
+  test('it resets with a new game (Play again) and on restart', async ({
+    page,
+  }) => {
+    await seed(page)
+    await open(page)
+    await pill(page).click()
+    await expect(panel(page)).toBeVisible()
+    await page.getByRole('button', { name: 'Restart' }).click()
+    await expect(panel(page)).toHaveCount(0)
+    await expect(pill(page)).toHaveAttribute('aria-expanded', 'false')
+    expect(await logCount(page)).toBeLessThanOrEqual(3)
+  })
+
+  test('panel geometry: right panel from sm up, half-height bottom sheet on phones', async ({
+    page,
+  }, info) => {
+    await seed(page)
+    await open(page)
+    await pill(page).click()
+    // measure after the slide-up/fade-in has finished
+    await panel(page).evaluate((el) =>
+      Promise.all(el.getAnimations().map((a) => a.finished)),
+    )
+    const box = (await panel(page).boundingBox())!
+    const { width: vw, height: vh } = page.viewportSize()!
+    expect(box.y + box.height).toBeCloseTo(vh, 0) // both reach the bottom edge
+    if (info.project.name === 'mobile') {
+      expect(box.x).toBeCloseTo(0, 0)
+      expect(box.width).toBeCloseTo(vw, 0)
+      expect(box.height).toBeCloseTo(Math.min(vh * 0.5, 460), 0)
+      expect(box.y).toBeGreaterThan(61) // leaves the top bar and the table in view
+      // the market stays visible and usable above the sheet
+      const market = (await page
+        .getByRole('button', { name: 'Draw from market' })
+        .boundingBox())!
+      expect(market.y + market.height).toBeLessThan(box.y)
+    } else {
+      expect(box.y).toBeCloseTo(61, 0)
+      expect(box.x + box.width).toBeCloseTo(vw, 0)
+      expect(box.width).toBeCloseTo(380, 0)
+    }
+  })
 })
