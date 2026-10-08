@@ -23,6 +23,9 @@ function state(over: Partial<WhotState> = {}): WhotState {
     msg: '',
     log: [],
     rules: DEFAULT_RULES,
+    known: [],
+    voids: {},
+    bad: null,
     ...over,
   }
 }
@@ -177,5 +180,46 @@ describe('whotSounds', () => {
       'you',
     )
     expect(whotSounds(g, drawn)).toContain('draw')
+  })
+
+  describe('Expert wrong card', () => {
+    it('plays buzz, then draw for the penalty card', () => {
+      const a = state({ turn: 'you' })
+      const b = next(a, {
+        hand: [...a.hand, c('star', 4)],
+        deck: a.deck.slice(1),
+        bad: a.hand[0].id,
+        turn: 'cpu',
+      })
+      expect(whotSounds(a, b)).toEqual(['buzz', 'draw'])
+    })
+
+    it('adds low when the penalty draw leaves the market at 5 or fewer', () => {
+      const a = state({ turn: 'you', deck: cards(6) })
+      const b = next(a, {
+        hand: [...a.hand, c('star', 4)],
+        deck: a.deck.slice(1),
+        bad: a.hand[0].id,
+      })
+      expect(whotSounds(a, b)).toEqual(['buzz', 'draw', 'low'])
+    })
+
+    it('is silent once the flag has cleared (the CPU reply does not buzz)', () => {
+      const a = state({ bad: 1 })
+      expect(
+        whotSounds(a, next(a, { bad: null, cpu: a.cpu.slice(1) })),
+      ).toEqual([])
+    })
+
+    it('game over still plays only the result sound', () => {
+      const a = state({ turn: 'you', deck: cards(1) })
+      const b = next(a, {
+        deck: [],
+        hand: [...a.hand, c('star', 4)],
+        bad: a.hand[0].id,
+        over: { result: 'loss', reason: 'count', yourTotal: 30, cpuTotal: 8 },
+      })
+      expect(whotSounds(a, b)).toEqual(['lose'])
+    })
   })
 })

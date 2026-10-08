@@ -6,6 +6,7 @@ import type { Dir } from '#/hooks/useKeyDirection'
 import { useInterval } from '#/hooks/useInterval'
 import { usePageVisible } from '#/hooks/usePageVisible'
 import { useSwipe } from '#/hooks/useSwipe'
+import { usePaused, usePauseNote } from '#/store/help'
 import { useScores } from '#/store/scores'
 import { useTheme } from '#/store/theme'
 import { DPad } from './DPad'
@@ -150,7 +151,10 @@ function SerpentBoard({
 
   useKeyDirection(turn)
   const swipe = useSwipe(turn)
-  useInterval(tick, phase === 'running' && visible ? tickSpeed(settings.snakeSpeed, score) : null)
+  // How to play freezes the loop; on close it restarts at the current speed.
+  const paused = usePaused()
+  usePauseNote(phase === 'running' ? 'Paused · resumes when you close this' : null)
+  useInterval(tick, phase === 'running' && visible && !paused ? tickSpeed(settings.snakeSpeed, score) : null)
 
   // Canvas is an external system: redraw on theme change and on resize.
   const drawNow = useEffectEvent(redraw)

@@ -4,6 +4,7 @@ import type { GameMeta } from '#/games/types'
 import { useBestLabel } from '#/games/useBestLabel'
 import { useInterval } from '#/hooks/useInterval'
 import { loop, play } from '#/lib/sound'
+import { useHelp } from '#/store/help'
 
 const LOAD_MS = 3500
 const SEGMENTS = 20
@@ -96,15 +97,25 @@ export function GameLoader({
             Arcade boot
           </span>
         </div>
-        <button
-          type="button"
-          aria-label="Back to lobby"
-          title="Back to lobby (Esc)"
-          onClick={onCancel}
-          className="grid size-10 cursor-pointer place-items-center rounded-full border border-[#3A3846] text-xl leading-none hover:border-[#F4F2F7]"
-        >
-          ×
-        </button>
+        <div className="flex items-center gap-2.5">
+          <button
+            type="button"
+            title="How to play (?)"
+            onClick={() => useHelp.getState().open(game.id)}
+            className="h-10 cursor-pointer rounded-full border border-[#3A3846] px-4 font-mono text-[11px] tracking-[.14em] whitespace-nowrap uppercase hover:border-[#F4F2F7]"
+          >
+            How to play
+          </button>
+          <button
+            type="button"
+            aria-label="Back to lobby"
+            title="Back to lobby (Esc)"
+            onClick={onCancel}
+            className="grid size-10 cursor-pointer place-items-center rounded-full border border-[#3A3846] text-xl leading-none hover:border-[#F4F2F7]"
+          >
+            ×
+          </button>
+        </div>
       </div>
 
       <div className="relative flex flex-1 items-center justify-center px-[clamp(16px,4vw,40px)] pt-4 pb-12">

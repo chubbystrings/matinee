@@ -1,5 +1,6 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import type { GameProps } from '#/games/types'
+import { usePaused, usePauseNote } from '#/store/help'
 import { useScores } from '#/store/scores'
 import { phaseView, pushTry, waitDelay } from './logic'
 import type { Phase } from './logic'
@@ -61,6 +62,15 @@ export default function Quickdraw({ onStats, onResult }: GameProps) {
       clearTimeout(timer.current)
     }
   }, [])
+
+  // How to play cancels an armed round (a timed reaction can't survive a pause).
+  const paused = usePaused()
+  const inFlight = phase === 'wait' || phase === 'go'
+  usePauseNote(inFlight ? 'Round cancelled · tap to arm a new one' : null)
+  if (paused && inFlight) setPhase('idle') // adjusted while rendering: no extra effect pass
+  useEffect(() => {
+    if (paused) clearTimeout(timer.current)
+  }, [paused])
 
   const view = phaseView(phase, ms, newBest)
 

@@ -16,7 +16,7 @@ export type Card = {
   readonly n: number
 }
 export type Who = 'you' | 'cpu'
-export type Level = 'Easy' | 'Hard'
+export type Level = 'Easy' | 'Hard' | 'Expert'
 export type Result = 'win' | 'loss' | 'draw'
 export type Rng = () => number
 
@@ -26,6 +26,8 @@ export type Outcome = {
   reason: 'out' | 'count'
   yourTotal?: number
   cpuTotal?: number
+  /** The game was played on Expert (set when it ends). */
+  expert?: boolean
 }
 
 /**
@@ -63,6 +65,18 @@ export type WhotState = {
   readonly log: ReadonlyArray<LogEntry>
   /** Fixed for the whole game, so changing settings never alters a game in progress. */
   readonly rules: Rules
+  /**
+   * What the Expert CPU may know about your hand: ids of cards you revealed by playing them wrongly
+   * (dropped again when you play them) ...
+   */
+  readonly known: ReadonlyArray<number>
+  /**
+   * ... and, per shape, a soft allowance: how many cards of it you can still be holding. Drawing
+   * voluntarily shows you had no match (allowance 0); every card you draw adds 1 to every entry.
+   */
+  readonly voids: Readonly<Partial<Record<CardShape, number>>>
+  /** The card you just played wrongly on Expert (it shakes); cleared by the next transition. */
+  readonly bad: number | null
 }
 
 const NUMBERS: Record<Shape, ReadonlyArray<number>> = {
@@ -179,6 +193,12 @@ function settleByCount(state: WhotState): WhotState {
   )
 }
 
+const mapVoids = (
+  voids: WhotState['voids'],
+  fn: (allowance: number) => number,
+): WhotState['voids'] =>
+  Object.fromEntries(Object.entries(voids).map(([s, v]) => [s, fn(v)]))
+
 /**
  * `reason` names why the cards were drawn, for the log: 'Pick two', 'starter Pick two'.
  * Without one it is an ordinary market draw.
@@ -196,6 +216,8 @@ function drawCards(
     who,
     [...handOf(state, who), ...drawn],
   )
+  if (who === 'you' && drawn.length > 0)
+    next = { ...next, voids: mapVoids(next.voids, (v) => v + drawn.length) }
   if (drawn.length > 0) {
     const why = reason ? ` (${reason})` : ' from the market'
     next = addLog(next, who, `Drew ${drawn.length}${why}.`, undefined, drawn)
@@ -209,7 +231,7 @@ export function pickCpuShape(
   rng: Rng,
 ): Shape {
   const random = () => SHAPES[Math.floor(rng() * SHAPES.length)]
-  if (level !== 'Hard') return random()
+  if (level === 'Easy') return random()
   const counts = new Map<Shape, number>()
   for (const c of cpuHand)
     if (c.s !== 'whot') counts.set(c.s, (counts.get(c.s) ?? 0) + 1)
@@ -265,6 +287,9 @@ export function dealGame(
     msg: '',
     log: [],
     rules,
+    known: [],
+    voids: {},
+    bad: null,
   }
   state = addLog(
     state,
@@ -318,6 +343,8 @@ export function playCard(
   cardId: number,
   level: Level,
   rng: Rng,
+  /** The shape the CPU calls when this is a WHOT (the Expert search chooses it). */
+  callAs?: Shape,
 ): WhotState {
   if (state.over || state.picking || state.turn !== who) return state
   const from = handOf(state, who)
@@ -335,6 +362,19 @@ export function playCard(
     ...setHand(state, who, rest),
     pile: [...state.pile, card],
     req: null,
+    bad: null,
+  }
+  if (who === 'you') {
+    // Playing a card shows it is no longer a secret, and uses up one of that shape's allowance.
+    const allowance = next.voids[card.s]
+    next = {
+      ...next,
+      known: next.known.filter((id) => id !== card.id),
+      voids:
+        allowance === undefined
+          ? next.voids
+          : { ...next.voids, [card.s]: Math.max(0, allowance - 1) },
+    }
   }
   const base = `${name} played ${cardName(card)}.`
 
@@ -361,7 +401,7 @@ export function playCard(
         turn: 'cpu',
         msg: 'You played WHOT. Call a shape.',
       }
-    const req = pickCpuShape(rest, level, rng)
+    const req = callAs ?? pickCpuShape(rest, level, rng)
     return {
       ...addLog(next, who, `${played} Asks for ${SHAPE_NAME[req]}.`, card),
       req,
@@ -399,11 +439,47 @@ export function playCard(
 
 export function drawFromMarket(state: WhotState, who: Who): WhotState {
   if (state.over || state.picking || state.turn !== who) return state
-  const next = drawCards(state, who, 1)
+  let from: WhotState = { ...state, bad: null }
+  if (who === 'you') {
+    // Drawing by choice shows you had no match for the top card (or the called shape).
+    const asked = state.req ?? state.pile[state.pile.length - 1].s
+    from = { ...from, voids: { ...from.voids, [asked]: 0, whot: 0 } }
+  }
+  const next = drawCards(from, who, 1)
   return {
     ...next,
     turn: other(who),
     msg: `${who === 'you' ? 'You drew' : 'CPU drew'} from the market.`,
+  }
+}
+
+/**
+ * Expert only (the caller decides): you tried a card that doesn't match. It stays in your hand, is
+ * revealed to the CPU, you draw 1 and the turn passes. The usual empty-market count still applies.
+ */
+export function playWrongCard(state: WhotState, cardId: number): WhotState {
+  if (state.over || state.picking || state.turn !== 'you') return state
+  const card = state.hand.find((c) => c.id === cardId)
+  if (!card || canPlay(card, state)) return state
+  const top = state.pile[state.pile.length - 1]
+  const asked = state.req ? ` (asked ${SHAPE_NAME[state.req]})` : ''
+  let next = addLog(
+    {
+      ...state,
+      bad: card.id,
+      known: state.known.includes(card.id)
+        ? state.known
+        : [...state.known, card.id],
+    },
+    'you',
+    `Tried ${cardName(card)} on ${cardName(top)}${asked}. Not a match: card returned.`,
+    card,
+  )
+  next = drawCards(next, 'you', 1, 'wrong card')
+  return {
+    ...next,
+    turn: next.over ? next.turn : 'cpu',
+    msg: `${cardName(card)} doesn't match. It goes back to your hand, you draw 1 and the CPU plays.`,
   }
 }
 
@@ -414,6 +490,7 @@ export function callShape(state: WhotState, shape: Shape): WhotState {
   return {
     ...addLog(state, 'you', `Asked for ${SHAPE_NAME[shape]}.`),
     req: shape,
+    bad: null,
     picking: false,
     msg: `You asked for ${SHAPE_NAME[shape]}.${yourMove ? ' Your move.' : ''}`,
   }
@@ -438,7 +515,7 @@ export function pickCpuCard(
   level: Level,
   rng: Rng,
 ): Card {
-  if (level !== 'Hard') return legal[Math.floor(rng() * legal.length)]
+  if (level === 'Easy') return legal[Math.floor(rng() * legal.length)]
   let best = legal[0]
   let bestScore = -Infinity
   for (const card of legal) {

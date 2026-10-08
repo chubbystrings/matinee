@@ -4,7 +4,7 @@ import { useSyncExternalStore } from 'react'
 // Client only: every window / AudioContext access is guarded because routes render on the server.
 
 export type SoundName =
-  'win' | 'lose' | 'tie' | 'special' | 'draw' | 'last' | 'low' | 'coin'
+  'win' | 'lose' | 'tie' | 'special' | 'draw' | 'last' | 'low' | 'coin' | 'buzz'
 export type SoundState = { readonly vol: number; readonly muted: boolean }
 
 export const SOUND_KEY = 'matinee.sound.v1'
@@ -234,6 +234,11 @@ const SOUNDS: Record<SoundName, (p: Play) => void> = {
   low(p) {
     p(1568, 0, 0.04, { g: 0.08 })
     p(1175, 0.08, 0.05, { g: 0.08 })
+  },
+  // Illegal card in Expert · ~0.3s low buzz
+  buzz(p) {
+    p(N.G3, 0, 0.1, { type: 'sawtooth', g: 0.1 })
+    p(N.D3, 0.12, 0.18, { type: 'sawtooth', g: 0.1 })
   },
   // Press Start on the game loader · ~0.45s coin insert
   coin(p) {

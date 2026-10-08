@@ -8,6 +8,8 @@ export type WhotStats = {
   draws: number
   streak: number
   best: number
+  /** Wins on the Expert level (also counted in `wins`). */
+  expertWins: number
 }
 
 export const EMPTY_STATS: WhotStats = {
@@ -16,10 +18,18 @@ export const EMPTY_STATS: WhotStats = {
   draws: 0,
   streak: 0,
   best: 0,
+  expertWins: 0,
 }
 
-/** Win: +1 win and streak, best = max. Loss: streak resets. Draw: streak is kept. */
-export function applyResult(stats: WhotStats, result: Result): WhotStats {
+/**
+ * Win: +1 win and streak, best = max (and +1 expertWins on Expert). Loss: streak resets. Draw: streak is kept.
+ * Stats are shared across levels.
+ */
+export function applyResult(
+  stats: WhotStats,
+  result: Result,
+  expert = false,
+): WhotStats {
   if (result === 'win') {
     const streak = stats.streak + 1
     return {
@@ -27,6 +37,7 @@ export function applyResult(stats: WhotStats, result: Result): WhotStats {
       wins: stats.wins + 1,
       streak,
       best: Math.max(stats.best, streak),
+      expertWins: stats.expertWins + (expert ? 1 : 0),
     }
   }
   if (result === 'loss')
@@ -38,25 +49,28 @@ export function applyResult(stats: WhotStats, result: Result): WhotStats {
 export const formatWhotBest = (stats: Pick<WhotStats, 'wins' | 'best'>) =>
   stats.wins ? `${stats.wins} wins · best streak ${stats.best}` : '—'
 
-type StatsStore = WhotStats & { record: (result: Result) => void }
+type StatsStore = WhotStats & {
+  record: (result: Result, expert?: boolean) => void
+}
 
 // Shared across difficulties. Restarting mid-game never calls `record`.
 export const useWhotStats = create<StatsStore>()(
   persist(
     (set) => ({
       ...EMPTY_STATS,
-      record: (result) => set((s) => applyResult(s, result)),
+      record: (result, expert) => set((s) => applyResult(s, result, expert)),
     }),
     {
       name: 'matinee.whot.v1',
       version: 1,
       storage: createJSONStorage(() => localStorage),
-      partialize: ({ wins, losses, draws, streak, best }) => ({
+      partialize: ({ wins, losses, draws, streak, best, expertWins }) => ({
         wins,
         losses,
         draws,
         streak,
         best,
+        expertWins,
       }),
     },
   ),
@@ -64,11 +78,19 @@ export const useWhotStats = create<StatsStore>()(
 
 type LevelStore = { level: Level; setLevel: (level: Level) => void }
 
+export const LEVELS: ReadonlyArray<Level> = ['Easy', 'Hard', 'Expert']
+const isLevel = (v: unknown): v is Level => LEVELS.some((l) => l === v)
+
 export const useWhotLevel = create<LevelStore>()(
   persist((set) => ({ level: 'Easy', setLevel: (level) => set({ level }) }), {
     name: 'matinee.whot.level',
     version: 1,
     storage: createJSONStorage(() => localStorage),
     partialize: ({ level }) => ({ level }),
+    // Accept 'Hard' and 'Expert' on load; anything else falls back to Easy.
+    merge: (persisted, current) => {
+      const level = (persisted as { level?: unknown } | null)?.level
+      return { ...current, level: isLevel(level) ? level : current.level }
+    },
   }),
 )

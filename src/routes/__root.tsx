@@ -5,6 +5,7 @@ import { TanStackDevtools } from '@tanstack/react-devtools'
 import unbounded800 from '@fontsource/unbounded/files/unbounded-latin-800-normal.woff2?url'
 import appCss from '../styles.css?url'
 import '#/lib/registerServiceWorker'
+import { HowToPlayHost } from '#/components/HowToPlay'
 import { THEME_INIT_SCRIPT } from '#/store/theme'
 
 export const Route = createRootRoute({
@@ -57,6 +58,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </head>
       <body suppressHydrationWarning>
         {children}
+        <HowToPlayHost />
         <TanStackDevtools
           config={{
             position: 'bottom-right',

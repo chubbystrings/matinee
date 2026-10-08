@@ -9,7 +9,7 @@ export function StatPill({
   accent?: string
 }) {
   return (
-    <div className="min-w-14 rounded-[10px] bg-ink-800 px-2.5 py-1 text-right">
+    <div className="min-w-12 rounded-[10px] bg-ink-800 px-2 py-1 text-right sm:min-w-14 sm:px-2.5">
       <div className="font-mono text-[10px] uppercase tracking-[.1em] text-dim">{label}</div>
       <div
         className={`font-mono text-[15px] font-medium ${accent ? 'text-(--accent) light:text-on-accent' : ''}`}

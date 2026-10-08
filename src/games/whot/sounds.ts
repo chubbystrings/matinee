@@ -18,6 +18,8 @@ export function whotSounds(a: WhotState, b: WhotState): Array<SoundName> {
           : 'tie',
     ]
   const q: Array<SoundName> = []
+  // A wrong card on Expert: the buzz leads, then the penalty draw follows.
+  if (b.bad !== null) q.push('buzz')
   const top = b.pile[b.pile.length - 1]
   if (
     b.pile.length > a.pile.length &&

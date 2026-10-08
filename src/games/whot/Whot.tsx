@@ -5,7 +5,8 @@ import { useInterval } from '#/hooks/useInterval'
 import { usePageVisible } from '#/hooks/usePageVisible'
 import { play } from '#/lib/sound'
 import type { SoundName } from '#/lib/sound'
-import { useWhotLevel, useWhotStats } from '#/store/whot'
+import { usePaused, usePauseNote } from '#/store/help'
+import { LEVELS, useWhotLevel, useWhotStats } from '#/store/whot'
 import {
   SHAPES,
   SHAPE_NAME,
@@ -16,17 +17,21 @@ import {
   drawFromMarket,
   newGame,
   playCard,
+  playWrongCard,
   sortHand,
 } from './engine'
-import type { Card, Level, Shape, WhotState } from './engine'
+import type { Card, Shape, WhotState } from './engine'
+import { expertMove } from './expert'
 import { PLAY_LOG_ID, PlayLog } from './PlayLog'
 import { DEFAULT_RULES, legendEntries } from './rules'
+import { LEVEL_COPY } from './levels'
 import { whotSounds } from './sounds'
 import { CARD_BACK_BG, MARKET_BACK_BG, SHAPE_COLOR } from './shapes'
 import { CardFace, ShapeMark } from './WhotCard'
 
 const CPU_DELAY_MS = 800
-const LEVELS: ReadonlyArray<Level> = ['Easy', 'Hard']
+// Expert spends ~380 ms searching, so it waits less and the whole move feels about the same.
+const EXPERT_DELAY_MS = 420
 
 const MONO_LABEL = 'font-mono text-[11px] uppercase tracking-[.12em]'
 const BACK_STYLE = { background: CARD_BACK_BG }
@@ -75,7 +80,7 @@ function CpuHand({
   )
 }
 
-function GameOver({
+export function GameOver({
   game,
   streak,
   best,
@@ -105,6 +110,11 @@ function GameOver({
       <div className="font-mono text-xs uppercase tracking-[.14em] text-muted">
         {kicker}
       </div>
+      {over.result === 'win' && over.expert ? (
+        <div className="flex h-[26px] items-center rounded-pill border border-lime-line px-3 font-mono text-[11px] tracking-[.1em] text-link uppercase">
+          Expert win
+        </div>
+      ) : null}
       <div
         className={`font-display text-[clamp(26px,5vw,40px)] font-extrabold uppercase ${over.result === 'win' ? 'text-link' : 'text-paper'}`}
       >
@@ -163,6 +173,7 @@ function statusText(game: WhotState, myTurn: boolean, noMove: boolean) {
       : game.over.result === 'loss'
         ? 'CPU wins'
         : 'Draw'
+  if (game.bad !== null) return 'Wrong card · you draw 1'
   if (game.picking) return 'Call a shape'
   if (!myTurn) return 'CPU is thinking…'
   if (noMove) return 'No match · draw from the market'
@@ -191,26 +202,46 @@ function WhotBoard({ onAgain }: { onAgain: () => void }) {
   const [logOpen, setLogOpen] = useState(false)
 
   // Every transition goes through here so the result is recorded exactly once, from a handler or timer.
-  const commit = (next: WhotState) => {
-    if (next === game) return
+  const expert = level === 'Expert'
+  const commit = (incoming: WhotState) => {
+    if (incoming === game) return
+    // Mark the result with the level it was played on (the badge and expert wins read it).
+    const next =
+      incoming.over && !game.over
+        ? { ...incoming, over: { ...incoming.over, expert } }
+        : incoming
     playSounds(whotSounds(game, next))
     setGame(next)
-    if (next.over && !game.over) record(next.over.result)
+    if (next.over && !game.over) record(next.over.result, expert)
   }
 
   // The CPU's 800 ms pause is a declarative interval that only runs on its turn (and while the tab is visible).
   const cpuToMove = game.turn === 'cpu' && !game.picking && !game.over
+  // How to play pauses the CPU's timer; it starts a fresh pause when the sheet has closed.
+  const paused = usePaused()
+  usePauseNote(cpuToMove ? 'Paused · the CPU waits until you close this' : null)
   useInterval(
-    () => commit(cpuMove(game, level, Math.random)),
-    cpuToMove && visible ? CPU_DELAY_MS : null,
+    () =>
+      commit(
+        expert
+          ? expertMove(game, Math.random)
+          : cpuMove(game, level, Math.random),
+      ),
+    cpuToMove && visible && !paused
+      ? expert
+        ? EXPERT_DELAY_MS
+        : CPU_DELAY_MS
+      : null,
   )
 
   const myTurn = game.turn === 'you' && !game.picking && !game.over
-  const noMove = myTurn && !game.hand.some((c) => canPlay(c, game))
+  // Expert gives no hints: no highlighting, no market glow, no "No match" status.
+  const noMove = myTurn && !expert && !game.hand.some((c) => canPlay(c, game))
   const top = game.pile[game.pile.length - 1]
   const prev = game.pile.length > 1 ? game.pile[game.pile.length - 2] : null
   const hand = sortHand(game.hand)
   const statusLime = myTurn || game.picking
+  const statusError = game.bad !== null && !game.over
 
   return (
     <div className="my-auto flex w-[min(96vw,760px)] flex-col items-center gap-[clamp(14px,2.4vh,22px)]">
@@ -304,7 +335,7 @@ function WhotBoard({ onAgain }: { onAgain: () => void }) {
         <div
           data-testid="whot-status"
           aria-live="polite"
-          className={`font-display text-[clamp(16px,2.4vw,20px)] font-semibold tracking-[.02em] uppercase ${statusLime ? 'text-link' : 'text-text-2'}`}
+          className={`font-display text-[clamp(16px,2.4vw,20px)] font-semibold tracking-[.02em] uppercase ${statusError ? 'text-err-text' : statusLime ? 'text-link' : 'text-text-2'}`}
         >
           {statusText(game, myTurn, noMove)}
         </div>
@@ -334,25 +365,34 @@ function WhotBoard({ onAgain }: { onAgain: () => void }) {
         data-testid="whot-hand"
       >
         {hand.map((c) => {
-          const playable = myTurn && canPlay(c, game)
+          const legal = canPlay(c, game)
+          const playable = myTurn && legal
+          // Expert: every card looks the same and can be tried; a wrong one is penalised.
+          const clickable = expert ? myTurn : playable
+          const lifted = !expert && playable
           return (
             <button
               key={c.id}
               type="button"
               data-testid="whot-card"
-              data-playable={playable}
+              data-playable={expert ? undefined : playable}
+              data-wrong={game.bad === c.id ? true : undefined}
               aria-label={cardName(c)}
-              disabled={!playable}
+              disabled={!clickable}
               onClick={() =>
-                commit(playCard(game, 'you', c.id, level, Math.random))
+                commit(
+                  legal
+                    ? playCard(game, 'you', c.id, level, Math.random)
+                    : playWrongCard(game, c.id),
+                )
               }
               className={`relative aspect-[5/7] w-[clamp(50px,min(10.5vw,11vh),80px)] flex-none rounded-[10px] p-0 text-on-accent transition-[transform,opacity,box-shadow] duration-150 [container-type:inline-size] disabled:cursor-default ${
-                playable ? '-translate-y-2 cursor-pointer' : 'shadow-poster'
-              }`}
+                lifted ? '-translate-y-2' : 'shadow-poster'
+              } ${clickable ? 'cursor-pointer' : ''} ${game.bad === c.id ? 'animate-shake' : ''}`}
               style={{
                 backgroundColor: SHAPE_COLOR[c.s],
-                opacity: myTurn && !playable ? 0.38 : 1,
-                boxShadow: playable
+                opacity: !expert && myTurn && !playable ? 0.38 : 1,
+                boxShadow: lifted
                   ? `0 14px 26px -12px ${SHAPE_COLOR[c.s]}`
                   : undefined,
               }}
@@ -395,6 +435,12 @@ function WhotBoard({ onAgain }: { onAgain: () => void }) {
           ))}
         </div>
       </div>
+      <p
+        data-testid="whot-level-desc"
+        className="-mt-1.5 max-w-[56ch] text-center text-[13px] leading-[1.45] text-muted [text-wrap:pretty]"
+      >
+        {level} · {LEVEL_COPY[level]}
+      </p>
       {logOpen ? (
         <PlayLog
           log={game.log}

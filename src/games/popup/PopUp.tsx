@@ -1,7 +1,8 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { GameOverlay } from '#/components/GameOverlay'
 import type { GameProps, GameStats } from '#/games/types'
-import { FIRST_SPAWN_MS, HIT_DELAY_MS, HOLES, nextHole, ROUND_SECONDS, spawnInterval } from './logic'
+import { usePaused, usePauseNote } from '#/store/help'
+import { FIRST_SPAWN_MS, HIT_DELAY_MS, RESUME_SPAWN_MS, HOLES, nextHole, ROUND_SECONDS, spawnInterval } from './logic'
 
 const now = () => performance.now()
 
@@ -93,11 +94,25 @@ function PopUpBoard({ onStats, onResult, onAgain }: BoardProps) {
       onStats(makeStats(scoreRef.current, seconds))
     }
   })
+  const paused = usePaused()
+  usePauseNote(phase === 'running' ? 'Paused · the timer resumes when you close this' : null)
   useEffect(() => {
-    if (phase !== 'running') return
+    if (phase !== 'running' || paused) return
     const id = setInterval(tick, 200)
     return () => clearInterval(id)
-  }, [phase])
+  }, [phase, paused])
+
+  // How to play: freeze the clock and the spawns, remember what was left, and carry on afterwards.
+  const resume = useEffectEvent((remainingMs: number) => {
+    endAt.current = now() + remainingMs
+    spawnTimer.current = setTimeout(spawn, RESUME_SPAWN_MS)
+  })
+  useEffect(() => {
+    if (!paused || phase !== 'running') return
+    const remaining = Math.max(0, endAt.current - now())
+    clearTimeout(spawnTimer.current)
+    return () => resume(remaining)
+  }, [paused, phase])
 
   const hit = (i: number) => {
     if (phase !== 'running' || i !== activeRef.current) return

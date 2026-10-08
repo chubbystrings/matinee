@@ -104,6 +104,21 @@ describe('audio engine', () => {
     expect(made.oscillators).toBe(0)
   })
 
+  it('buzz is two sawtooth notes at gain .1', async () => {
+    const s = await load()
+    const types: Array<string> = []
+    const orig = FakeAudioContext.prototype.createOscillator
+    FakeAudioContext.prototype.createOscillator = function () {
+      const n = orig.call(this)
+      types.push('osc')
+      return n
+    }
+    s.play('buzz')
+    FakeAudioContext.prototype.createOscillator = orig
+    expect(types).toHaveLength(2)
+    expect(made.oscillators).toBe(2)
+  })
+
   it('coin is two square notes', async () => {
     const s = await load()
     s.play('coin')

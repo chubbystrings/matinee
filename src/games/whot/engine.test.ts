@@ -46,6 +46,9 @@ function state(over: Partial<WhotState> = {}): WhotState {
     msg: '',
     log: [],
     rules: DEFAULT_RULES,
+    known: [],
+    voids: {},
+    bad: null,
     ...over,
   }
 }

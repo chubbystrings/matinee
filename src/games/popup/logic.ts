@@ -3,6 +3,8 @@ export type Rng = () => number
 export const HOLES = 9
 export const ROUND_SECONDS = 30
 export const FIRST_SPAWN_MS = 500
+/** First spawn after How to play closes on a paused round. */
+export const RESUME_SPAWN_MS = 400
 export const HIT_DELAY_MS = 160
 
 /** Time a target stays before the next one appears. */

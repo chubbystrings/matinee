@@ -20,6 +20,8 @@
   --color-muted: var(--mt-muted);
   --color-dim: var(--mt-dim);
   --color-link: var(--mt-lime-text);
+  --color-err-text: var(--mt-err-text);
+  --color-lime-line: var(--mt-lime-line);
   --color-accent-text: var(--mt-accent-text);
 
   /* Same in both modes */
@@ -52,11 +54,23 @@
   --animate-fade: fade .25s ease both;
   --animate-in: rise .4s ease both;
   --animate-pop: pop .14s ease-out both;
+  --animate-shake: shake .45s ease;
+  --animate-fade-out: fade-out .18s ease forwards;
+  --animate-help-in: help-in .28s cubic-bezier(.2, .8, .2, 1);
+  --animate-help-out: help-out .18s ease forwards;
+  --animate-help-up: help-up .28s cubic-bezier(.2, .8, .2, 1);
+  --animate-help-down: help-down .18s ease forwards;
   --animate-sheet: sheet .25s ease-out both;
 
   @keyframes fade { from { opacity: 0 } to { opacity: 1 } }
   @keyframes rise { from { opacity: 0; transform: translateY(14px) } to { opacity: 1; transform: none } }
   @keyframes sheet { from { transform: translateY(100%) } to { transform: none } }
+  @keyframes shake { 0% { transform: translateY(-14px) } 20% { transform: translate(-7px, -10px) rotate(-4deg) } 40% { transform: translate(7px, -6px) rotate(4deg) } 60% { transform: translate(-5px, -3px) rotate(-2deg) } 80% { transform: translate(3px, 0) rotate(1deg) } 100% { transform: none } }
+  @keyframes fade-out { to { opacity: 0 } }
+  @keyframes help-in { from { transform: translateX(calc(100% + 24px)) } to { transform: none } }
+  @keyframes help-out { to { transform: translateX(calc(100% + 24px)) } }
+  @keyframes help-up { from { transform: translateY(100%) } to { transform: none } }
+  @keyframes help-down { to { transform: translateY(100%) } }
   @keyframes pop { from { opacity: 0; transform: scale(.4) } to { opacity: 1; transform: scale(1) } }
 }
 
@@ -65,7 +79,7 @@
   --mt-bg: #0E0D12; --mt-canvas: #15141B; --mt-surface: #17161D; --mt-cardback: #1B1A22; --mt-raised: #201F28;
   --mt-hair: #22212A; --mt-line: #2E2C38; --mt-line2: #3A3846; --mt-line3: #4A4858;
   --mt-text: #F4F2F7; --mt-text2: #C9C6D2; --mt-muted: #A8A5B3; --mt-dim: #85828F; /* design value #6F6C7A is 3.8:1 on bg; lifted to pass WCAG AA (4.5:1) */
-  --mt-lime-text: #C8F031; --mt-lime-line: #4A5A1C;
+  --mt-lime-text: #C8F031; --mt-lime-line: #4A5A1C; --mt-err-text: #FF7A5C;
   --mt-accent-text: currentColor; /* in dark, use the game accent directly, e.g. style={{color: game.color}} */
   --mt-header: rgba(14,13,18,.86); --mt-backdrop: rgba(8,7,11,.74); --mt-overlay: rgba(14,13,18,.8);
   --mt-shadow-lg: 0 40px 80px -30px rgba(0,0,0,.8); --mt-shadow: 0 24px 48px -28px rgba(0,0,0,.9); --mt-hole: inset 0 6px 16px rgba(0,0,0,.6);
@@ -79,7 +93,7 @@
   --mt-bg: #F4F3F7; --mt-canvas: #FDFCFE; --mt-surface: #FDFCFE; --mt-cardback: #E9E7EE; --mt-raised: #ECEAF0;
   --mt-hair: #E2E0E8; --mt-line: #D8D5DF; --mt-line2: #C4C1CD; --mt-line3: #9C99A6;
   --mt-text: #121117; --mt-text2: #3D3A46; --mt-muted: #5E5B68; --mt-dim: #6B6875;
-  --mt-lime-text: #4C610B; --mt-lime-line: #B9CF6A;
+  --mt-lime-text: #4C610B; --mt-lime-line: #B9CF6A; --mt-err-text: #B4381C;
   --mt-accent-text: #121117; /* accents never used as text on light grounds */
   --mt-header: rgba(244,243,247,.86); --mt-backdrop: rgba(28,26,36,.45); --mt-overlay: rgba(244,243,247,.88);
   --mt-shadow-lg: 0 40px 70px -34px rgba(40,30,70,.45); --mt-shadow: 0 22px 40px -26px rgba(40,30,70,.45); --mt-hole: inset 0 4px 10px rgba(40,30,70,.16);

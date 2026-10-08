@@ -4,6 +4,7 @@ import { useRef } from 'react'
 import { Poster } from '#/components/Poster'
 import { preloadGame } from '#/games/registry'
 import type { GameMeta } from '#/games/types'
+import { useHelp } from '#/store/help'
 import { useBestLabel } from '#/games/useBestLabel'
 
 export function GameDetailSheet({ game }: { game: GameMeta }) {
@@ -84,7 +85,7 @@ export function GameDetailSheet({ game }: { game: GameMeta }) {
               </div>
             ))}
           </dl>
-          <div>
+          <div className="flex flex-wrap gap-3">
             <Link
               to="/play/$gameId"
               params={{ gameId: game.id }}
@@ -98,6 +99,13 @@ export function GameDetailSheet({ game }: { game: GameMeta }) {
               />
               Play
             </Link>
+            <button
+              type="button"
+              onClick={() => useHelp.getState().open(game.id)}
+              className="h-[52px] cursor-pointer rounded-pill border border-ink-500 bg-transparent px-6 font-display text-[13px] font-semibold uppercase tracking-[.06em] text-paper hover:border-paper"
+            >
+              How to play
+            </button>
           </div>
         </div>
       </div>
